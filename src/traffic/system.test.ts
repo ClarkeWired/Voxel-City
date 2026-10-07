@@ -141,6 +141,18 @@ describe('TrafficSystem', () => {
     expect(traffic.carCount).toBeLessThanOrEqual(3);
   });
 
+  it('dispatches an emergency vehicle to a requested node', () => {
+    const { traffic } = makeSystem();
+    const before = traffic.vehicleCount;
+    const agentId = traffic.spawnEmergency(0, 'in:1:1:S');
+    expect(agentId).not.toBeNull();
+    expect(traffic.vehicleCount).toBe(before + 1);
+    expect(traffic.destinationOf(agentId!)).toBe('in:1:1:S');
+    const car = traffic.agents.find((agent) => agent.id === agentId)!;
+    expect(car.route).toBeDefined();
+    expect(car.maxSpeed).toBeGreaterThan(9);
+  });
+
   it('renders signal lamps for the current phase', () => {
     const { traffic, scene } = makeSystem();
     for (let i = 0; i < 180; i++) traffic.update(1 / 60);

@@ -2,15 +2,17 @@ import type { ClockState } from './clock';
 import { DAY_LENGTH } from './clock';
 import type { RoadClosure } from './closures';
 import { parseCitizenStates, type CitizenState } from './citizens';
+import { parseIncidents, type Incident } from './incidents';
 import { parseWeather, type WeatherState } from './weather';
 
-export const WORLD_VERSION = 4;
+export const WORLD_VERSION = 5;
 
 export interface WorldState {
   version: number;
   clock: ClockState;
   rngState: number;
   closures: RoadClosure[];
+  incidents: Incident[];
   citizens: CitizenState[];
   weather: WeatherState | null;
 }
@@ -21,6 +23,7 @@ export function createWorldState(seedMinutes = 8 * 60): WorldState {
     clock: { minutes: seedMinutes, day: 1, speed: 1 },
     rngState: 0,
     closures: [],
+    incidents: [],
     citizens: [],
     weather: null,
   };
@@ -63,6 +66,7 @@ export function deserializeWorld(json: string): WorldState {
     record.version !== 1 &&
     record.version !== 2 &&
     record.version !== 3 &&
+    record.version !== 4 &&
     record.version !== WORLD_VERSION
   ) {
     throw new Error(`unsupported world version: ${String(record.version)}`);
@@ -101,6 +105,7 @@ export function deserializeWorld(json: string): WorldState {
     clock: { minutes, day, speed },
     rngState,
     closures,
+    incidents: parseIncidents(record.incidents),
     citizens: parseCitizenStates(record.citizens),
     weather: parseWeather(record.weather),
   };

@@ -53,6 +53,7 @@ export class TrafficSystem implements AgentWorld {
   private readonly positions = new Map<number, { x: number; z: number; yaw: number }>();
   private readonly destinations = new Map<number, string>();
   private readonly arrivalTimes = new Map<number, number>();
+  private readonly emergencyLights = new Map<number, THREE.Mesh>();
   private readonly anchors: string[];
   private readonly spawnEdges: LaneEdge[][];
   private readonly events: TrafficEvent[] = [];
@@ -157,26 +158,30 @@ export class TrafficSystem implements AgentWorld {
     }
   }
 
-  private trySpawn(edge: LaneEdge, dest: string): VehicleAgent | null {
+  private trySpawn(
+    edge: LaneEdge,
+    dest: string,
+    overrides?: { kind?: VehicleKind; color?: number; maxSpeed?: number },
+  ): VehicleAgent | null {
     const closed = this.closedEdges();
     if (closed.has(edge.id)) return null;
     const s = this.rng.range(4, Math.max(5, edge.length - 4));
     if (this.agents.some((a) => a.edgeId === edge.id && Math.abs(a.s - s) < 14)) return null;
     const route = findRoute(this.graph, edge.id, dest, closed);
     if (!route || route.length < 2) return null;
-    const kind: VehicleKind = this.rng.chance(0.3) ? 'van' : 'sedan';
+    const kind: VehicleKind = overrides?.kind ?? (this.rng.chance(0.3) ? 'van' : 'sedan');
     const agent = new VehicleAgent({
       id: this.nextId++,
       edgeId: edge.id,
       s,
-      maxSpeed: this.rng.range(6.0, 7.4),
+      maxSpeed: overrides?.maxSpeed ?? this.rng.range(6.0, 7.4),
       length: CAR_LENGTH,
       rng: () => this.rng.next(),
       route,
       routeIndex: 0,
     });
     this.destinations.set(agent.id, dest);
-    this.addAgent(agent, kind, CAR_COLORS[this.rng.int(0, CAR_COLORS.length - 1)]!);
+    this.addAgent(agent, kind, overrides?.color ?? CAR_COLORS[this.rng.int(0, CAR_COLORS.length - 1)]!);
     return agent;
   }
 
@@ -206,6 +211,39 @@ export class TrafficSystem implements AgentWorld {
     return null;
   }
 
+  spawnEmergency(fromBlock: number, destNodeId: string): number | null {
+    if (this.agents.length >= this.maxCars + 2) return null;
+    const candidates = this.spawnEdges[fromBlock] ?? this.spawnEdges[0];
+    if (!candidates || candidates.length === 0) return null;
+    const top = candidates.slice(0, 4);
+    const start = Math.floor(this.rng.next() * top.length);
+    for (let i = 0; i < top.length; i++) {
+      const edge = top[(start + i) % top.length]!;
+      const agent = this.trySpawn(edge, destNodeId, {
+        kind: 'van',
+        color: palette.carWhite,
+        maxSpeed: 9.5,
+      });
+      if (agent) {
+        this.attachEmergencyLight(agent.id);
+        return agent.id;
+      }
+    }
+    return null;
+  }
+
+  private attachEmergencyLight(agentId: number): void {
+    const view = this.views.get(agentId);
+    if (!view) return;
+    const light = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.24, 0.5),
+      new THREE.MeshBasicMaterial({ color: palette.lightRedOn }),
+    );
+    light.position.set(-0.3, 2.15, 0);
+    view.group.add(light);
+    this.emergencyLights.set(agentId, light);
+  }
+
   private addAgent(agent: VehicleAgent, kind: VehicleKind, color: number): void {
     this.agents.push(agent);
     const view = new VehicleView(kind, color, this.bodyMaterial, this.wheelMaterial);
@@ -221,6 +259,12 @@ export class TrafficSystem implements AgentWorld {
     if (view) {
       this.scene.remove(view.group);
       this.views.delete(agent.id);
+    }
+    const light = this.emergencyLights.get(agent.id);
+    if (light) {
+      light.geometry.dispose();
+      (light.material as THREE.Material).dispose();
+      this.emergencyLights.delete(agent.id);
     }
     this.positions.delete(agent.id);
     this.destinations.delete(agent.id);
@@ -319,6 +363,13 @@ export class TrafficSystem implements AgentWorld {
       this.positions.set(agent.id, { x: pose.x, z: pose.z, yaw });
       const view = this.views.get(agent.id);
       if (view) view.update(pose.x, pose.z, yaw, agent.v, dt);
+    }
+
+    if (this.emergencyLights.size > 0) {
+      const on = Math.floor(this.signals.time * 2.5) % 2 === 0;
+      for (const light of this.emergencyLights.values()) {
+        (light.material as THREE.MeshBasicMaterial).color.setHex(on ? palette.lightRedOn : palette.carBlue);
+      }
     }
   }
 

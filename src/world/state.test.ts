@@ -21,11 +21,12 @@ const sampleCitizen: CitizenState = {
 describe('WorldState persistence', () => {
   it('creates a fresh 08:00 world', () => {
     const world = createWorldState();
-    expect(world.version).toBe(4);
+    expect(world.version).toBe(5);
     expect(world.clock.minutes).toBe(480);
     expect(world.clock.day).toBe(1);
     expect(world.clock.speed).toBe(1);
     expect(world.closures).toEqual([]);
+    expect(world.incidents).toEqual([]);
     expect(world.citizens).toEqual([]);
     expect(world.weather).toBeNull();
   });
@@ -42,18 +43,27 @@ describe('WorldState persistence', () => {
       startMinutes: 2880,
       endMinutes: 2900,
     });
+    world.incidents.push({
+      id: 'incident-1',
+      edgeId: 'r:NS:1:0:1:S',
+      start: 2880,
+      respondAt: 2884,
+      clearAt: 2895,
+      phase: 'responding',
+    });
     world.citizens.push(sampleCitizen);
     world.weather = { kind: 'rain', intensity: 0.6, until: 2900 };
     const restored = deserializeWorld(serializeWorld(world));
     expect(restored).toEqual(world);
   });
 
-  it('migrates version 1-3 saves to version 4', () => {
+  it('migrates version 1-4 saves to version 5', () => {
     const v1 = JSON.stringify({ version: 1, clock: { minutes: 600, day: 2, speed: 1 }, rngState: 7 });
     const fromV1 = deserializeWorld(v1);
-    expect(fromV1.version).toBe(4);
+    expect(fromV1.version).toBe(5);
     expect(fromV1.clock).toEqual({ minutes: 600, day: 2, speed: 1 });
     expect(fromV1.closures).toEqual([]);
+    expect(fromV1.incidents).toEqual([]);
     expect(fromV1.citizens).toEqual([]);
     expect(fromV1.weather).toBeNull();
 
@@ -64,9 +74,8 @@ describe('WorldState persistence', () => {
       closures: [{ id: 'c', edgeId: 'e', reason: 'x', startMinutes: 0, endMinutes: 10 }],
     });
     const fromV2 = deserializeWorld(v2);
-    expect(fromV2.version).toBe(4);
+    expect(fromV2.version).toBe(5);
     expect(fromV2.closures.length).toBe(1);
-    expect(fromV2.weather).toBeNull();
 
     const v3 = JSON.stringify({
       version: 3,
@@ -75,14 +84,24 @@ describe('WorldState persistence', () => {
       citizens: [sampleCitizen],
     });
     const fromV3 = deserializeWorld(v3);
-    expect(fromV3.version).toBe(4);
+    expect(fromV3.version).toBe(5);
     expect(fromV3.citizens.length).toBe(1);
-    expect(fromV3.weather).toBeNull();
+
+    const v4 = JSON.stringify({
+      version: 4,
+      clock: { minutes: 900, day: 1, speed: 1 },
+      rngState: 0,
+      weather: { kind: 'fog', intensity: 0.5, until: 1000 },
+    });
+    const fromV4 = deserializeWorld(v4);
+    expect(fromV4.version).toBe(5);
+    expect(fromV4.weather).toEqual({ kind: 'fog', intensity: 0.5, until: 1000 });
+    expect(fromV4.incidents).toEqual([]);
   });
 
-  it('drops malformed closure and citizen entries and malformed weather', () => {
+  it('drops malformed closure, incident, citizen and weather entries', () => {
     const payload = JSON.stringify({
-      version: 4,
+      version: 5,
       clock: { minutes: 10, day: 1, speed: 1 },
       rngState: 0,
       closures: [
@@ -90,11 +109,17 @@ describe('WorldState persistence', () => {
         { id: 'bad', edgeId: 'e' },
         'nonsense',
       ],
+      incidents: [
+        { id: 'incident-1', edgeId: 'e', start: 0, respondAt: 4, clearAt: 9, phase: 'active' },
+        { id: 'incident-x' },
+      ],
       citizens: [sampleCitizen, { id: 'x' }, null, { id: 2 }],
       weather: { kind: 'snow', intensity: 1, until: 5 },
     });
     const world = deserializeWorld(payload);
     expect(world.closures.length).toBe(1);
+    expect(world.incidents.length).toBe(1);
+    expect(world.incidents[0]!.id).toBe('incident-1');
     expect(world.citizens.length).toBe(1);
     expect(world.citizens[0]!.id).toBe(1);
     expect(world.weather).toBeNull();
@@ -120,11 +145,11 @@ describe('WorldState persistence', () => {
 
   it('keeps a valid rng snapshot and defaults invalid ones', () => {
     const good = deserializeWorld(
-      JSON.stringify({ version: 4, clock: { minutes: 10, day: 2, speed: 1 }, rngState: 4294967295 }),
+      JSON.stringify({ version: 5, clock: { minutes: 10, day: 2, speed: 1 }, rngState: 4294967295 }),
     );
     expect(good.rngState).toBe(4294967295);
     const bad = deserializeWorld(
-      JSON.stringify({ version: 4, clock: { minutes: 10, day: 2, speed: 1 }, rngState: -1.5 }),
+      JSON.stringify({ version: 5, clock: { minutes: 10, day: 2, speed: 1 }, rngState: -1.5 }),
     );
     expect(bad.rngState).toBe(0);
   });

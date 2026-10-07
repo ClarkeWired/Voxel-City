@@ -4,9 +4,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Rng } from './core/rng';
 import { palette } from './core/palette';
 import { buildCity } from './city/index';
+import { blockCenter } from './city/grid';
 import { buildLaneGraph, busLoopEdgeIds } from './traffic/graph';
 import { TrafficSystem } from './traffic/index';
 import { BarrierVisuals } from './traffic/barriers';
+import { IncidentVisuals } from './traffic/incidentVisuals';
 import { buildWalkGraph } from './people/paths';
 import { PeopleSystem } from './people/index';
 import {
@@ -18,6 +20,7 @@ import {
 } from './world/clock';
 import { activeClosureEdges, createClosure } from './world/closures';
 import { CitizenSystem } from './world/citizens';
+import { IncidentSystem } from './world/incidents';
 import { WeatherSystem, conditionsFor, isWeatherKind } from './world/weather';
 import { createWorldState, deserializeWorld, serializeWorld, type WorldState } from './world/state';
 
@@ -149,35 +152,92 @@ const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHe
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
 const barriers = new BarrierVisuals();
+const incidentVisuals = new IncidentVisuals();
+const incidents = IncidentSystem.fromJSON(world.incidents, rng);
 const busRouteEdges = new Set(busLoopEdgeIds());
 let closureCounter = 0;
 
-function toggleRandomClosure(preferNear?: { x: number; z: number }): void {
+function closedCandidates(): { edge: import('./traffic/graph').LaneEdge }[] {
   const at = simClock.worldMinutes;
   const active = activeClosureEdges(world.closures, at);
-  const candidates = [...graph.edges.values()].filter(
-    (edge) =>
-      edge.kind === 'road' &&
-      !busRouteEdges.has(edge.id) &&
-      !active.has(edge.id),
-  );
+  const blocked = incidents.blockingEdges();
+  return [...graph.edges.values()]
+    .filter(
+      (edge) =>
+        edge.kind === 'road' &&
+        !busRouteEdges.has(edge.id) &&
+        !active.has(edge.id) &&
+        !blocked.has(edge.id),
+    )
+    .map((edge) => ({ edge }));
+}
+
+function triggerRandomIncident(preferNear?: { x: number; z: number }, fastResponse = false): void {
+  const candidates = closedCandidates();
   if (candidates.length === 0) return;
-  let edge = candidates[Math.floor(rng.next() * candidates.length)]!;
+  let edge = candidates[Math.floor(rng.next() * candidates.length)]!.edge;
   if (preferNear) {
     let best = Infinity;
     for (const candidate of candidates) {
-      const last = candidate.points[candidate.points.length - 1]!;
-      const midX = (candidate.points[0]!.x + last.x) / 2;
-      const midZ = (candidate.points[0]!.z + last.z) / 2;
+      const points = candidate.edge.points;
+      const last = points[points.length - 1]!;
+      const midX = (points[0]!.x + last.x) / 2;
+      const midZ = (points[0]!.z + last.z) / 2;
       const d = (midX - preferNear.x) ** 2 + (midZ - preferNear.z) ** 2;
       if (d < best) {
         best = d;
-        edge = candidate;
+        edge = candidate.edge;
+      }
+    }
+  }
+  incidents.trigger(
+    edge.id,
+    simClock.worldMinutes,
+    fastResponse ? 0.02 : undefined,
+    fastResponse ? 45 : undefined,
+  );
+}
+
+function respondToIncident(edgeId: string): void {
+  const edge = graph.edges.get(edgeId);
+  if (!edge) return;
+  const last = edge.points[edge.points.length - 1]!;
+  const midX = (edge.points[0]!.x + last.x) / 2;
+  const midZ = (edge.points[0]!.z + last.z) / 2;
+  let bestBlock = 0;
+  let bestDistance = -1;
+  for (let b = 0; b < 9; b++) {
+    const bx = blockCenter(Math.floor(b / 3));
+    const bz = blockCenter(b % 3);
+    const d = (bx - midX) ** 2 + (bz - midZ) ** 2;
+    if (d > bestDistance) {
+      bestDistance = d;
+      bestBlock = b;
+    }
+  }
+  traffic.spawnEmergency(bestBlock, edge.from);
+}
+
+function toggleRandomClosure(preferNear?: { x: number; z: number }): void {
+  const candidates = closedCandidates();
+  if (candidates.length === 0) return;
+  let edge = candidates[Math.floor(rng.next() * candidates.length)]!.edge;
+  if (preferNear) {
+    let best = Infinity;
+    for (const candidate of candidates) {
+      const points = candidate.edge.points;
+      const last = points[points.length - 1]!;
+      const midX = (points[0]!.x + last.x) / 2;
+      const midZ = (points[0]!.z + last.z) / 2;
+      const d = (midX - preferNear.x) ** 2 + (midZ - preferNear.z) ** 2;
+      if (d < best) {
+        best = d;
+        edge = candidate.edge;
       }
     }
   }
   closureCounter++;
-  world.closures.push(createClosure(`closure-${closureCounter}`, edge.id, 'roadworks', at, 10));
+  world.closures.push(createClosure(`closure-${closureCounter}`, edge.id, 'roadworks', simClock.worldMinutes, 10));
 }
 
 window.addEventListener('keydown', (event) => {
@@ -199,6 +259,9 @@ window.addEventListener('keydown', (event) => {
     toggleRandomClosure();
   } else if (event.key === 'x' || event.key === 'X') {
     world.closures.length = 0;
+    for (const incident of incidents.list) incident.clearAt = simClock.worldMinutes;
+  } else if (event.key === 'i' || event.key === 'I') {
+    triggerRandomIncident();
   }
 });
 
@@ -208,6 +271,7 @@ function saveWorld(): void {
     world.rngState = rng.snapshot();
     world.citizens = citizens.toJSON();
     world.weather = weather.toJSON();
+    world.incidents = incidents.toJSON();
     window.localStorage.setItem(SAVE_KEY, serializeWorld(world));
   } catch {
     // storage may be unavailable or full; the simulation keeps running
@@ -237,7 +301,12 @@ function frame(): void {
   if (world.closures.some((closure) => closure.endMinutes <= at)) {
     world.closures = world.closures.filter((closure) => closure.endMinutes > at);
   }
+  for (const event of incidents.update(at)) {
+    if (event.type === 'responding') respondToIncident(event.edgeId);
+  }
+  for (const edgeId of incidents.blockingEdges()) closureEdgeSet.add(edgeId);
   barriers.update(scene, graph, world.closures, at);
+  incidentVisuals.update(scene, graph, incidents.list);
 
   weather.update(at);
   const conditions = conditionsFor(weather.current);
@@ -261,14 +330,18 @@ function frame(): void {
   if (elapsed - lastStatsUpdate > 0.5) {
     lastStatsUpdate = elapsed;
     const fps = Math.round(1 / Math.max(dt, 0.0001));
-    const closureInfo = closureEdgeSet.size > 0 ? ` · ${closureEdgeSet.size} closures` : '';
+    const closureCount = world.closures.filter(
+      (closure) => at >= closure.startMinutes && at < closure.endMinutes,
+    ).length;
+    const closureInfo = closureCount > 0 ? ` · ${closureCount} closures` : '';
+    const incidentInfo = incidents.count > 0 ? ` · ${incidents.count} incidents` : '';
     const weatherInfo =
       weather.current.kind === 'clear'
         ? ''
         : ` · ${weather.current.kind} ${Math.round(weather.current.intensity * 100)}%`;
     stats.textContent =
       `${traffic.vehicleCount} vehicles · ${citizens.travelingCount} commuters · ` +
-      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo}${weatherInfo} · ${fps} fps`;
+      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo}${incidentInfo}${weatherInfo} · ${fps} fps`;
   }
   requestAnimationFrame(frame);
 }
@@ -283,6 +356,10 @@ window.addEventListener('beforeunload', saveWorld);
 
 if (new URLSearchParams(window.location.search).has('closure')) {
   toggleRandomClosure({ x: 14, z: 20 });
+}
+
+if (params.has('incident')) {
+  triggerRandomIncident({ x: 14, z: 20 }, true);
 }
 
 weather.update(simClock.worldMinutes);

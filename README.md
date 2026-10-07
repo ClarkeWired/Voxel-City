@@ -33,6 +33,7 @@ npm run preview    # serve the production build
 - Cars drive real **origin→destination routes** planned over the lane graph. Closing a road (press **C**) raises barriers, invalidates affected routes and cars reroute from where they are; **X** reopens everything. Closures live in world state with start/end times and are saved with the city.
 - **60 citizens** have homes, workplaces and routines: they commute out around 08:00, return (some via a shop) around 17:00 and drive home. Rush hours emerge from those schedules — there is no random traffic spawner. The HUD shows how many commuters are on the road.
 - **Weather** rolls through clear, rain, storm and fog windows. Rain and fog reduce driving speeds, stretch following distances and cut braking performance, so journeys genuinely take longer; fog shortens visibility and storms darken the sky. `?weather=storm` (etc.) forces a state for demos.
+- **Incidents** (press **I**): a collision blocks its road segment, queues and reroutes traffic, and an ambulance is dispatched; once the scene clears, capacity returns and the queues dissipate. `X` clears closures and incidents. `?incident=1` stages one on the showcase street.
 
 ## What is simulated
 
