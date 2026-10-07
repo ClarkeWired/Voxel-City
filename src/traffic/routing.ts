@@ -30,6 +30,7 @@ export function findRoute(
   fromEdgeId: string,
   destNodeId: string,
   closedEdgeIds?: ReadonlySet<string>,
+  costMultiplier?: (edgeId: string) => number,
 ): string[] | null {
   const start = graph.edges.get(fromEdgeId);
   if (!start) return null;
@@ -62,7 +63,7 @@ export function findRoute(
     for (const edgeId of node.out) {
       if (closedEdgeIds?.has(edgeId)) continue;
       const edge = graph.edges.get(edgeId)!;
-      const candidate = bestDistance + edgeCost(edge);
+      const candidate = bestDistance + edgeCost(edge) * (costMultiplier?.(edgeId) ?? 1);
       const current = distance.get(edge.to);
       if (current === undefined || candidate < current) {
         distance.set(edge.to, candidate);

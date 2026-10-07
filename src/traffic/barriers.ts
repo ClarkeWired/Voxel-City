@@ -1,10 +1,42 @@
 import * as THREE from 'three';
 import { palette } from '../core/palette';
-import type { LaneGraph } from './graph';
+import type { LaneEdge, LaneGraph } from './graph';
 import { isClosureActive, type RoadClosure } from '../world/closures';
 
 const SEGMENTS = [-3.9, -2.6, -1.3, 0, 1.3, 2.6, 3.9];
 const BARRIER_COLORS = [palette.awningRed, palette.awningWhite];
+
+export interface BarrierPlacement {
+  x: number;
+  z: number;
+  rot: number;
+  color: number;
+}
+
+export function barrierPlacements(edge: LaneEdge): BarrierPlacement[] {
+  const placements: BarrierPlacement[] = [];
+  const tips = [edge.points[0]!, edge.points[edge.points.length - 1]!];
+  for (const tip of tips) {
+    const ahead = tip === edge.points[0] ? edge.points[1]! : edge.points[edge.points.length - 2]!;
+    const dx = tip.x - ahead.x;
+    const dz = tip.z - ahead.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len;
+    const uz = dz / len;
+    const px = -uz;
+    const pz = ux;
+    const rot = Math.atan2(-pz, px);
+    SEGMENTS.forEach((offset, index) => {
+      placements.push({
+        x: tip.x + px * offset,
+        z: tip.z + pz * offset,
+        rot,
+        color: BARRIER_COLORS[index % BARRIER_COLORS.length]!,
+      });
+    });
+  }
+  return placements;
+}
 
 export class BarrierVisuals {
   private mesh: THREE.InstancedMesh | null = null;
@@ -27,30 +59,11 @@ export class BarrierVisuals {
     }
     if (active.length === 0) return;
 
-    const placements: { x: number; z: number; rot: number; color: number }[] = [];
+    const placements: BarrierPlacement[] = [];
     for (const edgeId of active) {
       const edge = graph.edges.get(edgeId);
       if (!edge) continue;
-      const tips = [edge.points[0]!, edge.points[edge.points.length - 1]!];
-      for (const tip of tips) {
-        const ahead = tip === edge.points[0] ? edge.points[1]! : edge.points[edge.points.length - 2]!;
-        const dx = tip.x - ahead.x;
-        const dz = tip.z - ahead.z;
-        const len = Math.hypot(dx, dz) || 1;
-        const ux = dx / len;
-        const uz = dz / len;
-        const px = -uz;
-        const pz = ux;
-        const rot = Math.atan2(-pz, px);
-        SEGMENTS.forEach((offset, index) => {
-          placements.push({
-            x: tip.x + px * offset,
-            z: tip.z + pz * offset,
-            rot,
-            color: BARRIER_COLORS[index % BARRIER_COLORS.length]!,
-          });
-        });
-      }
+      placements.push(...barrierPlacements(edge));
     }
 
     const mesh = new THREE.InstancedMesh(

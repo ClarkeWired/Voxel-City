@@ -153,6 +153,27 @@ describe('TrafficSystem', () => {
     expect(car.maxSpeed).toBeGreaterThan(9);
   });
 
+  it('accumulates congestion and city noise around signal queues', () => {
+    const { traffic } = makeSystem();
+    for (let i = 0; i < 60 * 30; i++) traffic.update(1 / 60);
+    expect(traffic.noiseIndex).toBeGreaterThan(0.01);
+    let peak = 0;
+    for (const level of Object.values(traffic.congestionSnapshot())) {
+      peak = Math.max(peak, level);
+    }
+    expect(peak).toBeGreaterThan(0.05);
+  });
+
+  it('restores congestion memory from a snapshot', () => {
+    const scene = new THREE.Scene();
+    const graph = buildLaneGraph();
+    const traffic = new TrafficSystem(scene, graph, new Rng(3), shelter, heads, {
+      congestion: { 'r:EW:2:1:2:W': 0.8 },
+    });
+    expect(traffic.congestionLevel('r:EW:2:1:2:W')).toBeCloseTo(0.8);
+    expect(traffic.noiseIndex).toBeGreaterThan(0);
+  });
+
   it('renders signal lamps for the current phase', () => {
     const { traffic, scene } = makeSystem();
     for (let i = 0; i < 180; i++) traffic.update(1 / 60);

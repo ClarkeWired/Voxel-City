@@ -15,6 +15,7 @@ import {
   type LaneGraph,
 } from './graph';
 import { findRoute, nearestNodeId, routeContainsClosed } from './routing';
+import { CongestionTracker } from './congestion';
 import { SignalController, type LightState } from './signals';
 import type { DriveConditions } from '../world/weather';
 import { CAR_COLORS, VehicleView, type VehicleKind } from './views';
@@ -35,6 +36,7 @@ export interface TrafficOptions {
   initialCars?: number;
   maxCars?: number;
   conditions?: () => DriveConditions | null;
+  congestion?: Record<string, number>;
 }
 
 export class TrafficSystem implements AgentWorld {
@@ -60,6 +62,8 @@ export class TrafficSystem implements AgentWorld {
   private readonly busAgent: VehicleAgent;
   private readonly closedEdges: () => ReadonlySet<string>;
   private readonly conditions: () => DriveConditions | null;
+  private readonly congestion: CongestionTracker;
+  private readonly lastCongestionReroute = new Map<number, number>();
   private readonly baselineCars: number;
   private readonly maxCars: number;
   private lastLampKey = '';
@@ -81,6 +85,7 @@ export class TrafficSystem implements AgentWorld {
     this.scene = scene;
     this.closedEdges = options.closedEdges ?? (() => EMPTY_EDGES);
     this.conditions = options.conditions ?? (() => null);
+    this.congestion = CongestionTracker.fromJSON(options.congestion ?? {});
     this.baselineCars = options.initialCars ?? CAR_COUNT;
     this.maxCars = options.maxCars ?? MAX_CARS;
     this.bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -269,6 +274,7 @@ export class TrafficSystem implements AgentWorld {
     this.positions.delete(agent.id);
     this.destinations.delete(agent.id);
     this.arrivalTimes.delete(agent.id);
+    this.lastCongestionReroute.delete(agent.id);
   }
 
   update(dt: number): void {
@@ -284,12 +290,20 @@ export class TrafficSystem implements AgentWorld {
       if (agent === this.busAgent || agent.arrived || !agent.route) continue;
       const dest = this.destinations.get(agent.id);
       if (!dest) continue;
-      if (routeContainsClosed(agent.route, agent.routeIndex, closed)) {
-        const route = findRoute(this.graph, agent.edgeId, dest, closed);
+      const closedOnRoute = routeContainsClosed(agent.route, agent.routeIndex, closed);
+      const target = agent.route[agent.routeIndex + 1];
+      const congested = target !== undefined && this.congestion.level(target) > 0.45;
+      const cooldownOk =
+        closedOnRoute || this.signals.time - (this.lastCongestionReroute.get(agent.id) ?? -999) > 30;
+      if ((closedOnRoute || congested) && cooldownOk) {
+        const route = findRoute(this.graph, agent.edgeId, dest, closed, (edgeId) =>
+          this.congestion.costFactor(edgeId),
+        );
         if (route) {
           agent.route = route;
           agent.routeIndex = 0;
           agent.next = undefined;
+          this.lastCongestionReroute.set(agent.id, this.signals.time);
           this.rerouteCount++;
         }
       }
@@ -370,6 +384,18 @@ export class TrafficSystem implements AgentWorld {
       for (const light of this.emergencyLights.values()) {
         (light.material as THREE.MeshBasicMaterial).color.setHex(on ? palette.lightRedOn : palette.carBlue);
       }
+    }
+
+    const tracked = this.congestion.entries;
+    for (const [edgeId, list] of this.edgeAgents) {
+      let sum = 0;
+      for (const agent of list) sum += agent.v;
+      const averageSpeed = list.length > 0 ? sum / list.length : 0;
+      this.congestion.observe(edgeId, list.length, averageSpeed / 7.5, dt);
+    }
+    const present = new Set(this.edgeAgents.keys());
+    for (const [edgeId] of tracked) {
+      if (!present.has(edgeId)) this.congestion.observe(edgeId, 0, 0, dt);
     }
   }
 
@@ -487,6 +513,18 @@ export class TrafficSystem implements AgentWorld {
 
   destinationOf(agentId: number): string | undefined {
     return this.destinations.get(agentId);
+  }
+
+  congestionLevel(edgeId: string): number {
+    return this.congestion.level(edgeId);
+  }
+
+  congestionSnapshot(): Record<string, number> {
+    return this.congestion.toJSON();
+  }
+
+  get noiseIndex(): number {
+    return this.congestion.stress;
   }
 
   get vehicleCount(): number {

@@ -4,8 +4,9 @@ import type { RoadClosure } from './closures';
 import { parseCitizenStates, type CitizenState } from './citizens';
 import { parseIncidents, type Incident } from './incidents';
 import { parseWeather, type WeatherState } from './weather';
+import { parseCongestion } from '../traffic/congestion';
 
-export const WORLD_VERSION = 5;
+export const WORLD_VERSION = 6;
 
 export interface WorldState {
   version: number;
@@ -15,6 +16,7 @@ export interface WorldState {
   incidents: Incident[];
   citizens: CitizenState[];
   weather: WeatherState | null;
+  congestion: Record<string, number>;
 }
 
 export function createWorldState(seedMinutes = 8 * 60): WorldState {
@@ -26,6 +28,7 @@ export function createWorldState(seedMinutes = 8 * 60): WorldState {
     incidents: [],
     citizens: [],
     weather: null,
+    congestion: {},
   };
 }
 
@@ -67,6 +70,7 @@ export function deserializeWorld(json: string): WorldState {
     record.version !== 2 &&
     record.version !== 3 &&
     record.version !== 4 &&
+    record.version !== 5 &&
     record.version !== WORLD_VERSION
   ) {
     throw new Error(`unsupported world version: ${String(record.version)}`);
@@ -108,5 +112,6 @@ export function deserializeWorld(json: string): WorldState {
     incidents: parseIncidents(record.incidents),
     citizens: parseCitizenStates(record.citizens),
     weather: parseWeather(record.weather),
+    congestion: parseCongestion(record.congestion),
   };
 }

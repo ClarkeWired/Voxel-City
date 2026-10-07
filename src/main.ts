@@ -148,6 +148,7 @@ const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHe
   closedEdges: () => closureEdgeSet,
   initialCars: 0,
   conditions: () => conditionsFor(weather.current),
+  congestion: world.congestion,
 });
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
@@ -272,6 +273,7 @@ function saveWorld(): void {
     world.citizens = citizens.toJSON();
     world.weather = weather.toJSON();
     world.incidents = incidents.toJSON();
+    world.congestion = traffic.congestionSnapshot();
     window.localStorage.setItem(SAVE_KEY, serializeWorld(world));
   } catch {
     // storage may be unavailable or full; the simulation keeps running
@@ -339,9 +341,10 @@ function frame(): void {
       weather.current.kind === 'clear'
         ? ''
         : ` · ${weather.current.kind} ${Math.round(weather.current.intensity * 100)}%`;
+    const noiseInfo = traffic.noiseIndex >= 0.02 ? ` · noise ${Math.round(traffic.noiseIndex * 100)}%` : '';
     stats.textContent =
       `${traffic.vehicleCount} vehicles · ${citizens.travelingCount} commuters · ` +
-      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo}${incidentInfo}${weatherInfo} · ${fps} fps`;
+      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo}${incidentInfo}${weatherInfo}${noiseInfo} · ${fps} fps`;
   }
   requestAnimationFrame(frame);
 }
