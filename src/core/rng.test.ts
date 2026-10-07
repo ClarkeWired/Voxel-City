@@ -41,4 +41,14 @@ describe('Rng', () => {
     }
     expect(equal).toBeLessThan(5);
   });
+
+  it('snapshot and restore reproduce the exact stream', () => {
+    const rng = new Rng(99);
+    rng.next();
+    rng.next();
+    const snap = rng.snapshot();
+    const expected = [rng.next(), rng.next(), rng.next()];
+    rng.restore(snap);
+    expect([rng.next(), rng.next(), rng.next()]).toEqual(expected);
+  });
 });

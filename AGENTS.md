@@ -26,6 +26,7 @@ Instructions for AI agents (and humans) working in this repository.
 
 ```
 src/core/       rng, 2D geometry helpers, palette, voxel builder (instanced + merged), pixel font
+src/world/      simulation clock + day/night, serialisable world state / persistence
 src/city/       layout constants (grid.ts), roads + markings, buildings + signs, props, assembler
 src/traffic/    lane graph, signal cycle, IDM vehicle agent, vehicle models, TrafficSystem
 src/people/     pedestrian walk graph, person rig, PeopleSystem (crossing + bus stop boarding)

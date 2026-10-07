@@ -24,7 +24,12 @@ npm run preview    # serve the production build
 - **Drag** — orbit
 - **Scroll** — zoom
 - **Right-drag** — pan
+- **0 / 1 / 2 / 3** — pause, 1x, 4x, 16x simulation time (16x ≈ one day per 90 s)
 - `?cam=x,y,z,tx,ty,tz` — deep-link a camera position/target (handy for screenshots and docs)
+
+## Living world
+
+- A **simulation clock** drives a day/night cycle; sun, sky and fog follow it. The world autosaves to `localStorage` (and on unload) and restores the clock on the next visit, so the city continues where it left off.
 
 ## What is simulated
 

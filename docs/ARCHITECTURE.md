@@ -24,6 +24,13 @@
 - `props.ts`: bus shelter, traffic light poles (housings static; lamps are instanced and recolored by the signal controller), street lamps, trees, benches, bins, hydrants, planters.
 - `index.ts`: assembles everything, returns the shelter info and signal-head list for the traffic system.
 
+## World state & time (`src/world/`)
+
+- `clock.ts`: `SimulationClock` (minutes in the day, day counter, speed multiplier; speeds 0/1/4/16x, 1x = 1 simulated minute per real second). Pure helpers `daylightFactor`, `horizonWarmth` and `sunArc` define the sun curve (sunrise 06:00, sunset 20:00) and are unit-tested independently of rendering.
+- `state.ts`: versioned `WorldState` (clock + RNG snapshot) with validated JSON `serializeWorld`/`deserializeWorld`. The app autosaves to `localStorage` every 10 s and on unload; corrupt or outdated saves are discarded and a fresh 08:00 world starts. Full entity persistence will extend this schema.
+- Rendering observes the clock: sun position/intensity/colour, sky, fog and hemisphere light all follow the daylight curve. `?minutes=MMM` overrides the start time (demo/screenshot helper).
+- `Rng.snapshot()/restore()` make the seeded stream resumable for future full-world saves.
+
 ## Traffic (`src/traffic/`)
 
 - `graph.ts`: builds the directed lane graph:
@@ -64,6 +71,7 @@ Pure modules are covered by vitest:
 - `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; all 13 vehicle views get positioned; signal lamps reflect the phase.
 - `paths.test.ts` — walk graph connectivity, crossing geometry, crossing safety predicate.
 - `rng.test.ts` / `voxel.test.ts` / `font.test.ts` — determinism, mesh sizes, mirrored text.
+- `clock.test.ts` / `state.test.ts` — time advancement/rollover/speeds, daylight curve, save/load round-trip and rejection of corrupt payloads.
 
 ## Known trade-offs / next ideas
 

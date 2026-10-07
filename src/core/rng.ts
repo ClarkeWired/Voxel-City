@@ -28,4 +28,12 @@ export class Rng {
   chance(p: number): boolean {
     return this.next() < p;
   }
+
+  snapshot(): number {
+    return this.state;
+  }
+
+  restore(state: number): void {
+    this.state = state >>> 0;
+  }
 }
