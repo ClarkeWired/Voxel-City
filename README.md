@@ -30,6 +30,7 @@ npm run preview    # serve the production build
 ## Living world
 
 - A **simulation clock** drives a day/night cycle; sun, sky and fog follow it. The world autosaves to `localStorage` (and on unload) and restores the clock on the next visit, so the city continues where it left off.
+- Cars drive real **origin→destination routes** planned over the lane graph. Closing a road (press **C**) raises barriers, invalidates affected routes and cars reroute from where they are; **X** reopens everything. Closures live in world state with start/end times and are saved with the city.
 
 ## What is simulated
 

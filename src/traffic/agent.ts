@@ -26,6 +26,7 @@ export interface AgentOptions {
   rng: () => number;
   route?: string[];
   routeIndex?: number;
+  routeLoop?: boolean;
   stops?: AgentStop[];
 }
 
@@ -56,8 +57,10 @@ export class VehicleAgent {
   next: string | undefined;
   route: string[] | undefined;
   routeIndex: number;
+  routeLoop: boolean;
   stops: AgentStop[];
   dwelling = 0;
+  arrived = false;
   arrivedStop: AgentStop | null = null;
   private rng: () => number;
 
@@ -70,6 +73,7 @@ export class VehicleAgent {
     this.rng = opts.rng;
     this.route = opts.route;
     this.routeIndex = opts.routeIndex ?? 0;
+    this.routeLoop = opts.routeLoop ?? false;
     this.stops = opts.stops ?? [];
   }
 
@@ -81,8 +85,9 @@ export class VehicleAgent {
 
   private chooseNext(edge: LaneEdge, world: AgentWorld): string | undefined {
     if (this.route && this.route.length > 0) {
-      const nextIndex = (this.routeIndex + 1) % this.route.length;
-      return this.route[nextIndex];
+      const nextIndex = this.routeIndex + 1;
+      if (this.routeLoop) return this.route[nextIndex % this.route.length];
+      return nextIndex < this.route.length ? this.route[nextIndex] : undefined;
     }
     const candidates = world.outEdges(edge.to);
     if (candidates.length === 0) return undefined;
@@ -156,7 +161,9 @@ export class VehicleAgent {
         this.s -= edge.length;
         this.edgeId = nextEdge.id;
         if (this.route && this.route.length > 0) {
-          this.routeIndex = (this.routeIndex + 1) % this.route.length;
+          this.routeIndex = this.routeLoop
+            ? (this.routeIndex + 1) % this.route.length
+            : this.routeIndex + 1;
         }
         for (const stop of this.stops) {
           if (stop.edgeId === this.edgeId) stop.done = false;
@@ -165,6 +172,7 @@ export class VehicleAgent {
       } else {
         this.s = edge.length;
         this.v = 0;
+        this.arrived = true;
       }
     }
   }

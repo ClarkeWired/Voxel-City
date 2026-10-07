@@ -1,11 +1,14 @@
 import type { ClockState } from './clock';
+import { DAY_LENGTH } from './clock';
+import type { RoadClosure } from './closures';
 
-export const WORLD_VERSION = 1;
+export const WORLD_VERSION = 2;
 
 export interface WorldState {
   version: number;
   clock: ClockState;
   rngState: number;
+  closures: RoadClosure[];
 }
 
 export function createWorldState(seedMinutes = 8 * 60): WorldState {
@@ -13,11 +16,35 @@ export function createWorldState(seedMinutes = 8 * 60): WorldState {
     version: WORLD_VERSION,
     clock: { minutes: seedMinutes, day: 1, speed: 1 },
     rngState: 0,
+    closures: [],
   };
 }
 
 export function serializeWorld(state: WorldState): string {
   return JSON.stringify(state);
+}
+
+function parseClosure(raw: unknown): RoadClosure | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.edgeId !== 'string' ||
+    typeof record.reason !== 'string' ||
+    typeof record.startMinutes !== 'number' ||
+    typeof record.endMinutes !== 'number' ||
+    !Number.isFinite(record.startMinutes) ||
+    !Number.isFinite(record.endMinutes)
+  ) {
+    return null;
+  }
+  return {
+    id: record.id,
+    edgeId: record.edgeId,
+    reason: record.reason,
+    startMinutes: record.startMinutes,
+    endMinutes: record.endMinutes,
+  };
 }
 
 export function deserializeWorld(json: string): WorldState {
@@ -26,7 +53,7 @@ export function deserializeWorld(json: string): WorldState {
     throw new Error('world state must be an object');
   }
   const record = raw as Record<string, unknown>;
-  if (record.version !== WORLD_VERSION) {
+  if (record.version !== 1 && record.version !== WORLD_VERSION) {
     throw new Error(`unsupported world version: ${String(record.version)}`);
   }
   const clock = record.clock as Record<string, unknown> | undefined;
@@ -43,13 +70,25 @@ export function deserializeWorld(json: string): WorldState {
     throw new Error('clock values must be finite');
   }
   if (speed < 0) throw new Error('clock speed must not be negative');
+  if (minutes < 0 || minutes >= DAY_LENGTH * 2) throw new Error('clock minutes out of range');
+
   const rngState =
     typeof record.rngState === 'number' && Number.isInteger(record.rngState) && record.rngState >= 0
       ? record.rngState >>> 0
       : 0;
+
+  const closures: RoadClosure[] = [];
+  if (Array.isArray(record.closures)) {
+    for (const entry of record.closures) {
+      const closure = parseClosure(entry);
+      if (closure) closures.push(closure);
+    }
+  }
+
   return {
     version: WORLD_VERSION,
     clock: { minutes, day, speed },
     rngState,
+    closures,
   };
 }

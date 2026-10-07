@@ -39,12 +39,17 @@
   - `turn` edges are quadratic Bézier quarter-turns (no U-turns); each has a `maneuver` (straight/left/right) and left turns are `needsYield`.
   - Boundary arms that would lead out of the city are excluded, so every node always has a continuation.
   - `busLoopEdgeIds()` = closed loop around the central block; `BUS_STOP_EDGE` is the eastbound segment in front of the shelter.
+- `routing.ts`: Dijkstra over lane edges. `findRoute(graph, fromEdgeId, destNodeId, closed)` returns a contiguous edge path with turn penalties and closed-edge avoidance; `nearestNodeId` resolves destination anchors (block centroids); `routeContainsClosed` checks remaining paths.
+- `closures.ts` (in `src/world/`): `RoadClosure` with absolute world-minute windows (`worldMinutes(day, minutes)`), active-window helpers, and `createClosure`.
+- `barriers.ts`: renders red/white barrier rows across both ends of every actively closed edge (one InstancedMesh, rebuilt only when the active set changes).
 - `signals.ts`: pure global cycle, 11 s per axis (8 green, 2 yellow, 1 all-red), period 22 s. `signalState(axis, t)` and `timeUntilGreen(axis, t)` are pure functions; `SignalController` wraps them with an offset.
 - `agent.ts`: IDM (Intelligent Driver Model) longitudinal control with virtual leaders for stop lines. State machine: approach → stop/yield check → commit turn → next edge. `AgentWorld` is an interface so tests can stub the world. Buses carry `stops`; passing a stop sets dwell, emits an event, and resets the stop when re-entering its edge next lap.
 - `index.ts` (`TrafficSystem`): owns agents/views, builds per-edge occupancy lists each frame, implements `AgentWorld`:
+  - Cars spawn with a real origin→destination route to a block-centroid anchor; buses follow their fixed loop (`routeLoop: true`). Non-looping routes end in `arrived`, after which the vehicle is held briefly and retired; a replacement spawns after a short delay.
+  - Every frame, any car whose remaining route intersects an active closure is rerouted from its current edge; `canEnter` refuses closed edges as the safety net (vehicles wait rather than enter).
   - `leaderInfo`: nearest same-edge leader plus first vehicle on the next edge (queue spillback protection).
   - `canEnter`: blocks entering an occupied intersection; left turns also yield to oncoming traffic (with an id tie-break so two opposing left-turners cannot deadlock).
-  - emits `bus-arrived` / `bus-departed` events consumed by the people system.
+  - emits `bus-arrived` / `bus-departed` / `vehicle-arrived` events.
 - `views.ts`: vehicle voxel models (bus, sedan, van) + wheel rigs; body geometries are cached per kind/color.
 - Spawning is deterministic from the shared `Rng`; a 14-unit spacing check prevents overlaps.
 
@@ -68,7 +73,9 @@ Pure modules are covered by vitest:
 - `graph.test.ts` — id consistency, no dead ends, strong connectivity, maneuver classification, Bézier endpoints, bus loop chaining.
 - `signals.test.ts` — cycle states, mutual exclusion, all-red windows, periodicity.
 - `agent.test.ts` — stops at red, crosses on green, yields on yellow when able, car-following gap, queue spacing, bus dwell.
-- `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; all 13 vehicle views get positioned; signal lamps reflect the phase.
+- `routing.test.ts` — contiguous routes, trivial same-node routes, closure avoidance with a different path, unreachable destinations, remaining-path scanning.
+- `closures.test.ts` — closure windows, day-spanning closures, active-edge collection.
+- `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; every car has an origin→destination route; cars retire on arrival; closures trigger rerouting; all views get positioned; signal lamps reflect the phase.
 - `paths.test.ts` — walk graph connectivity, crossing geometry, crossing safety predicate.
 - `rng.test.ts` / `voxel.test.ts` / `font.test.ts` — determinism, mesh sizes, mirrored text.
 - `clock.test.ts` / `state.test.ts` — time advancement/rollover/speeds, daylight curve, save/load round-trip and rejection of corrupt payloads.

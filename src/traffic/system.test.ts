@@ -30,7 +30,7 @@ function luminance(color: THREE.Color): number {
 describe('TrafficSystem', () => {
   it('spawns the bus on its loop just west of the shelter stop', () => {
     const { traffic } = makeSystem();
-    const bus = traffic.agents.find((a) => a.route !== undefined);
+    const bus = traffic.agents.find((a) => a.routeLoop);
     expect(bus).toBeDefined();
     expect(bus!.edgeId).toBe('r:EW:2:1:2:E');
     expect(bus!.s).toBeLessThan(8.5);
@@ -51,22 +51,62 @@ describe('TrafficSystem', () => {
   it('parks the bus at the shelter stop on the showcase street', () => {
     const { traffic, scene } = makeSystem();
     for (let i = 0; i < 60 * 4; i++) traffic.update(1 / 60);
-    const busGroup = scene.children.filter((child): child is THREE.Group => child instanceof THREE.Group).at(-1)!;
+    const busGroup = scene.children.filter((child): child is THREE.Group => child instanceof THREE.Group)[0]!;
     expect(busGroup.position.z).toBeCloseTo(22.5, 1);
     expect(Math.abs(busGroup.position.x)).toBeLessThanOrEqual(6.6);
-    const bus = traffic.agents.find((a) => a.route !== undefined)!;
+    const bus = traffic.agents.find((a) => a.routeLoop)!;
     expect(bus.s).toBeCloseTo(8.5, 3);
     expect(bus.dwelling).toBeGreaterThan(0);
   });
 
   it('drives the bus away after dwelling', () => {
     const { traffic } = makeSystem();
-    const bus = traffic.agents.find((a) => a.route !== undefined)!;
+    const bus = traffic.agents.find((a) => a.routeLoop)!;
     for (let i = 0; i < 60 * 18; i++) traffic.update(1 / 60);
     expect(bus.edgeId).not.toBe('r:EW:2:1:2:E');
     const events = traffic.consumeEvents();
     expect(events.some((e) => e.type === 'bus-arrived')).toBe(true);
     expect(events.some((e) => e.type === 'bus-departed')).toBe(true);
+  });
+
+  it('assigns every car a real origin-to-destination route', () => {
+    const { traffic } = makeSystem();
+    const cars = traffic.agents.filter((agent) => !agent.routeLoop);
+    expect(cars.length).toBe(12);
+    for (const car of cars) {
+      expect(car.route).toBeDefined();
+      expect(car.route!.length).toBeGreaterThanOrEqual(2);
+      expect(car.route![0]).toBe(car.edgeId);
+      expect(traffic.destinationOf(car.id)).toBeDefined();
+    }
+  });
+
+  it('retires cars at their destination and keeps traffic flowing', () => {
+    const { traffic } = makeSystem();
+    let arrivals = 0;
+    for (let i = 0; i < 60 * 300; i++) {
+      traffic.update(1 / 60);
+      arrivals += traffic.consumeEvents().filter((event) => event.type === 'vehicle-arrived').length;
+    }
+    expect(arrivals).toBeGreaterThan(0);
+    expect(traffic.carCount).toBeGreaterThan(0);
+  });
+
+  it('reroutes a car when its next edge is closed', () => {
+    const closed = new Set<string>();
+    const scene = new THREE.Scene();
+    const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(99), shelter, heads, () => closed);
+    for (let i = 0; i < 60 * 20; i++) traffic.update(1 / 60);
+    const car = traffic.agents.find(
+      (agent) => !agent.routeLoop && !agent.arrived && agent.route !== undefined && agent.route.length - agent.routeIndex > 2,
+    );
+    expect(car).toBeDefined();
+    const blocked = car!.route![car!.routeIndex + 1]!;
+    closed.add(blocked);
+    const before = traffic.reroutes;
+    traffic.update(1 / 60);
+    expect(traffic.reroutes).toBeGreaterThan(before);
+    expect(car!.route!.slice(car!.routeIndex).includes(blocked)).toBe(false);
   });
 
   it('renders signal lamps for the current phase', () => {

@@ -4,8 +4,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Rng } from './core/rng';
 import { palette } from './core/palette';
 import { buildCity } from './city/index';
-import { buildLaneGraph } from './traffic/graph';
+import { buildLaneGraph, busLoopEdgeIds } from './traffic/graph';
 import { TrafficSystem } from './traffic/index';
+import { BarrierVisuals } from './traffic/barriers';
 import { buildWalkGraph } from './people/paths';
 import { PeopleSystem } from './people/index';
 import {
@@ -15,6 +16,7 @@ import {
   horizonWarmth,
   sunArc,
 } from './world/clock';
+import { activeClosureEdges, createClosure } from './world/closures';
 import { createWorldState, deserializeWorld, serializeWorld, type WorldState } from './world/state';
 
 const SAVE_KEY = 'voxel-city:save';
@@ -101,7 +103,7 @@ function applyDaylight(): void {
 }
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 2, 16);
+controls.target.set(0, 2, 20);
 controls.minDistance = 12;
 controls.maxDistance = 260;
 controls.maxPolarAngle = 1.45;
@@ -122,9 +124,41 @@ const rng = new Rng(20261007);
 
 const city = buildCity(scene, rng);
 const graph = buildLaneGraph();
-const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHeads);
+const closureEdgeSet = new Set<string>();
+const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHeads, () => closureEdgeSet);
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
+const barriers = new BarrierVisuals();
+const busRouteEdges = new Set(busLoopEdgeIds());
+let closureCounter = 0;
+
+function toggleRandomClosure(preferNear?: { x: number; z: number }): void {
+  const at = simClock.worldMinutes;
+  const active = activeClosureEdges(world.closures, at);
+  const candidates = [...graph.edges.values()].filter(
+    (edge) =>
+      edge.kind === 'road' &&
+      !busRouteEdges.has(edge.id) &&
+      !active.has(edge.id),
+  );
+  if (candidates.length === 0) return;
+  let edge = candidates[Math.floor(rng.next() * candidates.length)]!;
+  if (preferNear) {
+    let best = Infinity;
+    for (const candidate of candidates) {
+      const last = candidate.points[candidate.points.length - 1]!;
+      const midX = (candidate.points[0]!.x + last.x) / 2;
+      const midZ = (candidate.points[0]!.z + last.z) / 2;
+      const d = (midX - preferNear.x) ** 2 + (midZ - preferNear.z) ** 2;
+      if (d < best) {
+        best = d;
+        edge = candidate;
+      }
+    }
+  }
+  closureCounter++;
+  world.closures.push(createClosure(`closure-${closureCounter}`, edge.id, 'roadworks', at, 10));
+}
 
 window.addEventListener('keydown', (event) => {
   if (event.key === '+' || event.key === '=') {
@@ -141,6 +175,10 @@ window.addEventListener('keydown', (event) => {
     simClock.setSpeed(4);
   } else if (event.key === '3') {
     simClock.setSpeed(16);
+  } else if (event.key === 'c' || event.key === 'C') {
+    toggleRandomClosure();
+  } else if (event.key === 'x' || event.key === 'X') {
+    world.closures.length = 0;
   }
 });
 
@@ -169,6 +207,16 @@ function frame(): void {
     saveWorld();
   }
 
+  const at = simClock.worldMinutes;
+  closureEdgeSet.clear();
+  for (const closure of world.closures) {
+    if (at >= closure.startMinutes && at < closure.endMinutes) closureEdgeSet.add(closure.edgeId);
+  }
+  if (world.closures.some((closure) => closure.endMinutes <= at)) {
+    world.closures = world.closures.filter((closure) => closure.endMinutes > at);
+  }
+  barriers.update(scene, graph, world.closures, at);
+
   applyDaylight();
   traffic.update(dt);
   people.update(dt);
@@ -178,9 +226,10 @@ function frame(): void {
   if (elapsed - lastStatsUpdate > 0.5) {
     lastStatsUpdate = elapsed;
     const fps = Math.round(1 / Math.max(dt, 0.0001));
+    const closureInfo = closureEdgeSet.size > 0 ? ` · ${closureEdgeSet.size} closures` : '';
     stats.textContent =
       `${traffic.vehicleCount} vehicles · ${people.count} pedestrians · ` +
-      `day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x · ${fps} fps`;
+      `day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo} · ${fps} fps`;
   }
   requestAnimationFrame(frame);
 }
@@ -192,6 +241,10 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('beforeunload', saveWorld);
+
+if (new URLSearchParams(window.location.search).has('closure')) {
+  toggleRandomClosure({ x: 14, z: 20 });
+}
 
 applyDaylight();
 renderer.render(scene, camera);

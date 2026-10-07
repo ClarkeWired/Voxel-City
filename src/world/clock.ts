@@ -60,6 +60,10 @@ export class SimulationClock {
     return this.state.minutes < SUNRISE || this.state.minutes >= SUNSET;
   }
 
+  get worldMinutes(): number {
+    return (this.state.day - 1) * DAY_LENGTH + this.state.minutes;
+  }
+
   toJSON(): ClockState {
     return { ...this.state };
   }
