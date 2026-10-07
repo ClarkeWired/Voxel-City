@@ -54,6 +54,7 @@
   - `requestTrip(fromBlock, toBlock)` spawns a car on a road edge near the origin block with a route to the destination anchor — this is how the `CitizenSystem` puts traffic on the roads. The fleet is capped (`maxCars`); baseline demo traffic can be disabled with `initialCars: 0`.
   - Every frame, any car whose remaining route intersects an active closure is rerouted from its current edge; cars whose next edge is heavily congested (level > 0.45) also probe a congestion-weighted alternative at most every 30 s. `canEnter` refuses closed edges as the safety net (vehicles wait rather than enter). After movement, per-edge occupancy/average-speed samples update the `CongestionTracker`.
   - `leaderInfo`: nearest same-edge leader plus first vehicle on the next edge (queue spillback protection).
+  - **Emergency preemption**: while an ambulance with flashers is within 30 m of an intersection, `signal()`/`timeUntilGreen()` force green on its approach axis and red on the crossing axis for that intersection only — nearby traffic and pedestrians yield, and the override clears as soon as the ambulance enters the junction.
   - `canEnter`: blocks entering an occupied intersection; left turns also yield to oncoming traffic (with an id tie-break so two opposing left-turners cannot deadlock).
   - emits `bus-arrived` / `bus-departed` / `vehicle-arrived` events. `main.ts` is the single consumer and forwards each event to the people system and the citizen system.
 - `views.ts`: vehicle voxel models (bus, sedan, van) + wheel rigs; body geometries are cached per kind/color.

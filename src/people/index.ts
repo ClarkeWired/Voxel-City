@@ -186,8 +186,8 @@ export class PeopleSystem {
       .filter((edge) => edge.crossing !== undefined);
     for (const edge of crossings) {
       const crossing = edge.crossing!;
-      const state = this.traffic.signal(crossing.axis);
-      const remaining = this.traffic.timeUntilGreen(crossing.axis);
+      const state = this.traffic.signal(crossing.axis, crossing.intersectionId);
+      const remaining = this.traffic.timeUntilGreen(crossing.axis, crossing.intersectionId);
       const distance = this.traffic.nearestVehicleDistance(crossing.center);
       if (canStartCrossing(crossing, state, remaining, distance)) {
         ped.state = 'cross';

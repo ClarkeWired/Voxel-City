@@ -5,7 +5,7 @@ import type { Rng } from '../core/rng';
 import { palette } from '../core/palette';
 import { blockCenter, GRID_N } from '../city/grid';
 import type { ShelterBuild, SignalHead } from '../city/props';
-import { VehicleAgent, type AgentStop, type AgentWorld } from './agent';
+import { VehicleAgent, intersectionOfNode, type AgentStop, type AgentWorld } from './agent';
 import {
   BUS_STOP_EDGE,
   busLoopEdgeIds,
@@ -64,6 +64,7 @@ export class TrafficSystem implements AgentWorld {
   private readonly conditions: () => DriveConditions | null;
   private readonly congestion: CongestionTracker;
   private readonly lastCongestionReroute = new Map<number, number>();
+  private readonly emergencyOverrides = new Map<string, Axis>();
   private readonly baselineCars: number;
   private readonly maxCars: number;
   private lastLampKey = '';
@@ -280,6 +281,7 @@ export class TrafficSystem implements AgentWorld {
   update(dt: number): void {
     this.signals.update(dt);
     this.updateLamps();
+    this.refreshPreemption();
 
     const conditions = this.conditions();
     for (const agent of this.agents) agent.setConditions(conditions);
@@ -470,12 +472,33 @@ export class TrafficSystem implements AgentWorld {
     return { gap, deltaV };
   }
 
-  signal(axis: Axis): LightState {
+  signal(axis: Axis, intersectionId?: string): LightState {
+    const override = intersectionId !== undefined ? this.emergencyOverrides.get(intersectionId) : undefined;
+    if (override !== undefined) return axis === override ? 'green' : 'red';
     return this.signals.state(axis);
   }
 
-  timeUntilGreen(axis: Axis): number {
+  timeUntilGreen(axis: Axis, intersectionId?: string): number {
+    const override = intersectionId !== undefined ? this.emergencyOverrides.get(intersectionId) : undefined;
+    if (override !== undefined) return axis === override ? 0 : 20;
     return this.signals.timeUntilGreen(axis);
+  }
+
+  private refreshPreemption(): void {
+    this.emergencyOverrides.clear();
+    for (const id of this.emergencyLights.keys()) {
+      const agent = this.agents.find((candidate) => candidate.id === id);
+      if (!agent) continue;
+      const edge = this.graph.edges.get(agent.edgeId);
+      if (!edge || edge.kind !== 'road') continue;
+      if (edge.length - agent.s > 30) continue;
+      const intersectionId = intersectionOfNode(edge.to);
+      if (intersectionId) this.emergencyOverrides.set(intersectionId, edge.axis);
+    }
+  }
+
+  preemptedIntersection(id: string): Axis | undefined {
+    return this.emergencyOverrides.get(id);
   }
 
   canEnter(agent: VehicleAgent, next: LaneEdge): boolean {

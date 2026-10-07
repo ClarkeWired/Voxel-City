@@ -174,6 +174,24 @@ describe('TrafficSystem', () => {
     expect(traffic.noiseIndex).toBeGreaterThan(0);
   });
 
+  it('preempts the signal ahead of an approaching emergency vehicle', () => {
+    const { traffic } = makeSystem();
+    const agentId = traffic.spawnEmergency(0, 'in:1:1:S');
+    expect(agentId).not.toBeNull();
+    const ambulance = traffic.agents.find((agent) => agent.id === agentId)!;
+    const edge = buildLaneGraph().edges.get('r:NS:1:0:1:S')!;
+    ambulance.edgeId = edge.id;
+    ambulance.s = edge.length - 10;
+    traffic.update(1 / 60);
+    expect(traffic.preemptedIntersection('1:1')).toBe('NS');
+    expect(traffic.signal('NS', '1:1')).toBe('green');
+    expect(traffic.signal('EW', '1:1')).toBe('red');
+    expect(traffic.signal('NS', '2:2')).toBe(traffic.signal('NS'));
+    ambulance.edgeId = 't:1:1:N:E';
+    traffic.update(1 / 60);
+    expect(traffic.preemptedIntersection('1:1')).toBeUndefined();
+  });
+
   it('renders signal lamps for the current phase', () => {
     const { traffic, scene } = makeSystem();
     for (let i = 0; i < 180; i++) traffic.update(1 / 60);

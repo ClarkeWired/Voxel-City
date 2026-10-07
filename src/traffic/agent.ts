@@ -7,8 +7,13 @@ export interface AgentWorld {
   edge(id: string): LaneEdge;
   outEdges(nodeId: string): readonly LaneEdge[];
   leaderInfo(agent: VehicleAgent): { gap: number; deltaV: number };
-  signal(axis: Axis): LightState;
+  signal(axis: Axis, intersectionId?: string): LightState;
   canEnter(agent: VehicleAgent, next: LaneEdge): boolean;
+}
+
+export function intersectionOfNode(nodeId: string): string | undefined {
+  const parts = nodeId.split(':');
+  return parts[0] === 'in' ? `${parts[1]}:${parts[2]}` : undefined;
 }
 
 export interface AgentStop {
@@ -131,7 +136,7 @@ export class VehicleAgent {
       const nextEdge = world.edge(this.next);
       if (edge.kind === 'road' && nextEdge.kind === 'turn') {
         const distance = edge.length - this.s;
-        const state = world.signal(edge.axis);
+        const state = world.signal(edge.axis, intersectionOfNode(edge.to));
         const canStop = distance > (this.v * this.v) / (2 * BRAKE * this.brakeFactor) + 0.8;
         const blocked = !world.canEnter(this, nextEdge);
         if (blocked || state === 'red' || (state === 'yellow' && canStop)) {
