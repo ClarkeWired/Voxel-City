@@ -83,9 +83,12 @@ function buildWindow(
   rng: Rng,
   withFlowers: boolean,
 ): void {
-  boxOn(builder, fx, fz, side, u, 0.12, y, 1.95, 0.2, 2.0, palette.frame);
-  boxOn(builder, fx, fz, side, u, 0.04, y, 1.45, 0.2, 1.5, palette.glass);
-  boxOn(builder, fx, fz, side, u, 0.22, y - 1.2, 2.3, 0.5, 0.28, palette.frame);
+  boxOn(builder, fx, fz, side, u, 0.12, y + 0.875, 1.95, 0.2, 0.25, palette.frame);
+  boxOn(builder, fx, fz, side, u, 0.12, y - 0.875, 1.95, 0.2, 0.25, palette.frame);
+  boxOn(builder, fx, fz, side, u - 0.85, 0.12, y, 0.25, 0.2, 2.0, palette.frame);
+  boxOn(builder, fx, fz, side, u + 0.85, 0.12, y, 0.25, 0.2, 2.0, palette.frame);
+  boxOn(builder, fx, fz, side, u, 0.0, y, 1.5, 0.2, 1.55, palette.glass);
+  boxOn(builder, fx, fz, side, u, 0.22, y - 1.08, 2.3, 0.5, 0.28, palette.frame);
   if (withFlowers && rng.chance(0.65)) {
     const count = rng.int(1, 3);
     for (let i = 0; i < count; i++) {
@@ -285,6 +288,7 @@ export function buildBuildings(builder: VoxelBuilder, rng: Rng): void {
       const bx = blockCenter(bi);
       const bz = blockCenter(bj);
       for (const side of SIDES) {
+        if (bi === 1 && bj === 2 && side.name === 'N') continue;
         const showcase = bi === 1 && bj === 1 ? showcaseLots(side) : null;
         const specs = showcase ?? randomLots(rng);
         for (const spec of specs) {

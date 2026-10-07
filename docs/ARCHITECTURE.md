@@ -20,7 +20,7 @@
 ## Roads & city (`src/city/`)
 
 - `roads.ts`: base slabs, block platforms with curb caps, asphalt wear, manholes, dashed center lines, zebra stripes, stop lines.
-- `buildings.ts`: per block and side, 2 lots per side; central block south side hosts the showcase CAFE (orange) and FLOWERS (mint) shops. Buildings have windows with frames/sills/flower boxes, striped awnings with valance, sign bands with pixel-font text, storefronts, doors, roof slabs, chimneys, AC units. Corner buildings may interpenetrate like terraced real buildings; only outward facades carry detail.
+- `buildings.ts`: per block and side, 2 lots per side; central block south side hosts the showcase CAFE (orange) and FLOWERS (mint) shops. The north side of block `(1,2)` — the block between the default camera and the showcase street — is kept open as a plaza so the street, shelter and shops stay visible. Buildings have windows with frames/sills/flower boxes, striped awnings with valance, sign bands with pixel-font text, storefronts, doors, roof slabs, chimneys, AC units. Corner buildings may interpenetrate like terraced real buildings; only outward facades carry detail.
 - `props.ts`: bus shelter, traffic light poles (housings static; lamps are instanced and recolored by the signal controller), street lamps, trees, benches, bins, hydrants, planters.
 - `index.ts`: assembles everything, returns the shelter info and signal-head list for the traffic system.
 
@@ -61,6 +61,7 @@ Pure modules are covered by vitest:
 - `graph.test.ts` — id consistency, no dead ends, strong connectivity, maneuver classification, Bézier endpoints, bus loop chaining.
 - `signals.test.ts` — cycle states, mutual exclusion, all-red windows, periodicity.
 - `agent.test.ts` — stops at red, crosses on green, yields on yellow when able, car-following gap, queue spacing, bus dwell.
+- `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; all 13 vehicle views get positioned; signal lamps reflect the phase.
 - `paths.test.ts` — walk graph connectivity, crossing geometry, crossing safety predicate.
 - `rng.test.ts` / `voxel.test.ts` / `font.test.ts` — determinism, mesh sizes, mirrored text.
 

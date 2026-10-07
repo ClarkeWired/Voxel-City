@@ -18,7 +18,7 @@ Instructions for AI agents (and humans) working in this repository.
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Vite dev server (http://localhost:5173) |
-| `npm test` | Vitest unit tests (grid, graph, signals, agent, paths, font, rng) |
+| `npm test` | Vitest unit tests (grid, graph, signals, agent, paths, font, voxel, rng) |
 | `npm run build` | Typecheck (`tsc`) + production bundle (`vite build`) |
 | `npm run typecheck` | Typecheck only |
 
@@ -47,3 +47,7 @@ See `docs/ARCHITECTURE.md` for the full design.
 - Tests added/updated for any pure logic change.
 - `npm test` and `npm run build` green.
 - Committed and pushed to `origin` (GitHub: `ClarkeWired/Voxel-City`).
+
+## CI note
+
+GitHub Actions CI is intentionally absent: the current `gh` OAuth token lacks the `workflow` scope, so pushes containing `.github/workflows/*` are rejected. To enable CI: `gh auth refresh -s workflow`, add a workflow that runs `npm ci && npm test && npm run build`, commit it, and push.

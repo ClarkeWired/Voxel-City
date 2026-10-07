@@ -55,7 +55,7 @@ export function buildShelter(builder: VoxelBuilder, cx: number, cz: number, face
     { x: cx + 0.2, z: cz - zSign * 0.15 },
     { x: cx + 1.4, z: cz - zSign * 0.15 },
   ];
-  const doorPoint: Pt = { x: cx - 1.6, z: cz + zSign * 2.0 };
+  const doorPoint: Pt = { x: cx + 2.5, z: cz + zSign * 2.2 };
   return { center: { x: cx, z: cz }, waitSpots, doorPoint };
 }
 

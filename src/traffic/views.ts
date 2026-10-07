@@ -20,7 +20,7 @@ const WHEELS: Record<VehicleKind, WheelSpec> = {
 
 function busBuilder(): VoxelBuilder {
   const b = new VoxelBuilder();
-  b.box(0, 0.95, 0, 8.6, 1.0, 2.5, palette.busYellow);
+  b.box(0, 1.125, 0, 8.6, 1.35, 2.5, palette.busYellow);
   b.box(0, 0.55, 0, 8.6, 0.3, 2.5, palette.busYellowDark);
   b.box(0, 2.22, 0, 8.3, 0.85, 2.42, palette.carGlass);
   for (const x of [-3.8, -1.9, 0, 1.9, 3.6]) {

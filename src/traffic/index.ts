@@ -4,6 +4,7 @@ import { samplePolyline } from '../core/geo';
 import type { Rng } from '../core/rng';
 import { palette } from '../core/palette';
 import type { ShelterBuild } from '../city/props';
+import type { SignalHead } from '../city/props';
 import { VehicleAgent, type AgentStop, type AgentWorld } from './agent';
 import {
   BUS_STOP_EDGE,
@@ -34,14 +35,32 @@ export class TrafficSystem implements AgentWorld {
   private readonly positions = new Map<number, { x: number; z: number; yaw: number }>();
   private readonly events: TrafficEvent[] = [];
   private readonly busAgent: VehicleAgent;
+  private readonly heads: SignalHead[];
+  private readonly lampMesh: THREE.InstancedMesh;
+  private lastLampKey = '';
   private busPrevDwell = 0;
   private nextId = 1;
 
-  constructor(scene: THREE.Scene, graph: LaneGraph, rng: Rng, shelter: ShelterBuild) {
+  constructor(scene: THREE.Scene, graph: LaneGraph, rng: Rng, shelter: ShelterBuild, signalHeads: SignalHead[]) {
     this.graph = graph;
     this.rng = rng;
     this.bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.wheelMaterial = new THREE.MeshLambertMaterial({ color: palette.carTire });
+    this.heads = signalHeads;
+    this.lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshBasicMaterial(), signalHeads.length * 3);
+    const dummy = new THREE.Object3D();
+    let lampIndex = 0;
+    for (const head of signalHeads) {
+      for (const dy of [0.5, 0, -0.5]) {
+        dummy.position.set(head.x, head.y + dy, head.z);
+        dummy.updateMatrix();
+        this.lampMesh.setMatrixAt(lampIndex++, dummy.matrix);
+      }
+    }
+    this.lampMesh.instanceMatrix.needsUpdate = true;
+    this.lampMesh.frustumCulled = false;
+    scene.add(this.lampMesh);
+    this.updateLamps(true);
 
     const roadEdges = [...graph.edges.values()].filter((e) => e.kind === 'road');
     let spawned = 0;
@@ -92,6 +111,7 @@ export class TrafficSystem implements AgentWorld {
 
   update(dt: number): void {
     this.signals.update(dt);
+    this.updateLamps();
 
     this.edgeAgents.clear();
     this.occupancy.clear();
@@ -142,6 +162,26 @@ export class TrafficSystem implements AgentWorld {
     const out = this.events.slice();
     this.events.length = 0;
     return out;
+  }
+
+  private updateLamps(force = false): void {
+    const ns = this.signals.state('NS');
+    const ew = this.signals.state('EW');
+    const key = `${ns}:${ew}`;
+    if (!force && key === this.lastLampKey) return;
+    this.lastLampKey = key;
+    const color = new THREE.Color();
+    let index = 0;
+    for (const head of this.heads) {
+      const state = head.axis === 'NS' ? ns : ew;
+      color.setHex(state === 'red' ? palette.lightRedOn : palette.lightRedOff);
+      this.lampMesh.setColorAt(index++, color);
+      color.setHex(state === 'yellow' ? palette.lightYellowOn : palette.lightYellowOff);
+      this.lampMesh.setColorAt(index++, color);
+      color.setHex(state === 'green' ? palette.lightGreenOn : palette.lightGreenOff);
+      this.lampMesh.setColorAt(index++, color);
+    }
+    if (this.lampMesh.instanceColor) this.lampMesh.instanceColor.needsUpdate = true;
   }
 
   edge(id: string): LaneEdge {

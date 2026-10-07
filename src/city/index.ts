@@ -102,7 +102,10 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
       ]) {
         const cx = bx + side.nx * edge;
         const cz = bz + side.nz * edge;
-        const lampU = rng.range(-7, 7);
+        const shelterSide = bi === 1 && bj === 2 && side.nx === 0 && side.nz === -1;
+        const uAt = (u: number): number =>
+          shelterSide && Math.abs(u - SHELTER_X) < 5 ? SHELTER_X + (u >= SHELTER_X ? 5 : -5) : u;
+        const lampU = uAt(rng.range(-7, 7));
         buildStreetLamp(
           builder,
           cx + side.tx * lampU - side.nx * 0.9,
@@ -110,25 +113,25 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
           side.nx,
           side.nz,
         );
-        const treeCount = rng.int(2, 4);
+        const treeCount = shelterSide ? 0 : rng.int(2, 4);
         for (let t = 0; t < treeCount; t++) {
-          const u = rng.range(-12, 12);
+          const u = uAt(rng.range(-12, 12));
           buildTree(builder, rng, cx + side.tx * u - side.nx * 1.1, cz + side.tz * u - side.nz * 1.1);
         }
         if (rng.chance(0.7)) {
-          const u = rng.range(-10, 10);
+          const u = uAt(rng.range(-10, 10));
           buildBench(builder, cx + side.tx * u - side.nx * 1.4, cz + side.tz * u - side.nz * 1.4, Math.abs(side.tx) > 0);
         }
         if (rng.chance(0.6)) {
-          const u = rng.range(-10, 10);
+          const u = uAt(rng.range(-10, 10));
           buildTrashCan(builder, cx + side.tx * u - side.nx * 0.9, cz + side.tz * u - side.nz * 0.9);
         }
         if (rng.chance(0.4)) {
-          const u = rng.range(-10, 10);
+          const u = uAt(rng.range(-10, 10));
           buildPlanter(builder, rng, cx + side.tx * u - side.nx * 1.5, cz + side.tz * u - side.nz * 1.5);
         }
         if (rng.chance(0.3)) {
-          const u = rng.range(-10, 10);
+          const u = uAt(rng.range(-10, 10));
           buildHydrant(builder, cx + side.tx * u - side.nx * 0.8, cz + side.tz * u - side.nz * 0.8);
         }
       }

@@ -24,11 +24,12 @@ npm run preview    # serve the production build
 - **Drag** — orbit
 - **Scroll** — zoom
 - **Right-drag** — pan
+- `?cam=x,y,z,tx,ty,tz` — deep-link a camera position/target (handy for screenshots and docs)
 
 ## What is simulated
 
 - **Roads**: 4×4 signalised intersections on a 3×3 block grid, lane markings, zebra crossings, stop lines.
-- **Traffic**: 12 cars (sedans/vans) + 1 bus. Vehicles follow lane geometry with an IDM car-following model, stop for red/yellow signals, yield on left turns, and never enter an occupied intersection.
+- **Traffic**: 12 cars (sedans/vans) + 1 bus. Vehicles follow lane geometry with an IDM car-following model, stop for red/yellow signals, yield on left turns, and never enter an occupied intersection. Traffic lights show live red/yellow/green lamps.
 - **Bus**: loops the central block, dwells at the bus shelter on the south sidewalk, and picks up waiting passengers.
 - **People**: 20+ pedestrians wander sidewalk loops. They cross roads only when the crossing signal is red for traffic, enough green time remains, and no vehicle is near; they speed up if a car approaches mid-crossing. Waiters board the bus when it arrives.
 

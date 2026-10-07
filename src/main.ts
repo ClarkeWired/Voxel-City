@@ -17,7 +17,7 @@ scene.background = new THREE.Color(palette.sky);
 scene.fog = new THREE.Fog(palette.fog, 150, 340);
 
 const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 700);
-camera.position.set(41, 36, 59);
+camera.position.set(32, 46, 58);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -46,19 +46,28 @@ scene.add(sun);
 scene.add(sun.target);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 3, 16);
+controls.target.set(0, 2, 16);
 controls.minDistance = 12;
 controls.maxDistance = 260;
 controls.maxPolarAngle = 1.45;
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
+
+const camParam = new URLSearchParams(window.location.search).get('cam');
+if (camParam) {
+  const nums = camParam.split(',').map(Number);
+  if (nums.length === 6 && nums.every((n) => Number.isFinite(n))) {
+    camera.position.set(nums[0]!, nums[1]!, nums[2]!);
+    controls.target.set(nums[3]!, nums[4]!, nums[5]!);
+  }
+}
 controls.update();
 
 const rng = new Rng(20261007);
 
 const city = buildCity(scene, rng);
 const graph = buildLaneGraph();
-const traffic = new TrafficSystem(scene, graph, rng, city.shelter);
+const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHeads);
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
 
@@ -88,4 +97,5 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+renderer.render(scene, camera);
 requestAnimationFrame(frame);
