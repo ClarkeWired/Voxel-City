@@ -4,6 +4,7 @@ import { clamp01, lerpAngle, lerpScalar, samplePolyline } from '../core/geo';
 import type { Rng } from '../core/rng';
 import type { ShelterBuild } from '../city/props';
 import type { TrafficEvent, TrafficSystem } from '../traffic/index';
+import type { SpatialBlocker } from '../world/obstacles';
 import { CROSS_SPEED, JOG_SPEED, PED_SPEED, canStartCrossing, type WalkEdge, type WalkGraph } from './paths';
 import { animateRig, createPersonRig, type PersonRig } from './person';
 
@@ -34,6 +35,7 @@ interface Ped {
   pyaw: number;
   boardFrom: Pt | null;
   dead: boolean;
+  crossingKey: string;
 }
 
 export interface PedState {
@@ -55,17 +57,19 @@ export class PeopleSystem {
   private readonly rng: Rng;
   private readonly scene: THREE.Scene;
   private readonly shelter: ShelterBuild;
+  private readonly blockers: SpatialBlocker;
   private readonly peds: Ped[] = [];
   private nextPedId = 1;
   private walkerSpawnTimer = 4;
   private waiterSpawnTimer = -1;
 
-  constructor(scene: THREE.Scene, graph: WalkGraph, traffic: TrafficSystem, rng: Rng, shelter: ShelterBuild) {
+  constructor(scene: THREE.Scene, graph: WalkGraph, traffic: TrafficSystem, rng: Rng, shelter: ShelterBuild, blockers: SpatialBlocker) {
     this.scene = scene;
     this.graph = graph;
     this.traffic = traffic;
     this.rng = rng;
     this.shelter = shelter;
+    this.blockers = blockers;
 
     for (let i = 0; i < 20; i++) this.spawnWalker(true);
     for (let i = 0; i < shelter.waitSpots.length; i++) this.spawnWaiter(i);
@@ -113,6 +117,7 @@ export class PeopleSystem {
       pyaw: 0,
       boardFrom: null,
       dead: false,
+      crossingKey: '',
     };
     this.placeOnPath(ped, edge);
     ped.px = ped.x;
@@ -153,6 +158,7 @@ export class PeopleSystem {
       pyaw: Math.PI,
       boardFrom: null,
       dead: false,
+      crossingKey: '',
     };
     this.peds.push(ped);
     this.scene.add(ped.rig.group);
@@ -177,6 +183,7 @@ export class PeopleSystem {
 
   private removePed(ped: Ped): void {
     ped.dead = true;
+    this.reportCrossing(ped, null);
     this.scene.remove(ped.rig.group);
   }
 
@@ -229,6 +236,20 @@ export class PeopleSystem {
     }
   }
 
+  private reportCrossing(ped: Ped, edge: WalkEdge | null): void {
+    const key = edge?.crossing ? `${edge.crossing.intersectionId}:${edge.crossing.axis}` : '';
+    if (key === ped.crossingKey) return;
+    if (ped.crossingKey) {
+      const [id, axis] = ped.crossingKey.split(':');
+      this.traffic.setCrossingOccupied(axis as 'NS' | 'EW', id, false);
+    }
+    if (key) {
+      const [id, axis] = key.split(':');
+      this.traffic.setCrossingOccupied(axis as 'NS' | 'EW', id, true);
+    }
+    ped.crossingKey = key;
+  }
+
   private pickNext(ped: Ped, nodeId: string, cameFrom: string): void {
     const node = this.graph.nodes.get(nodeId)!;
     const options = node.edges.filter((id) => id !== cameFrom);
@@ -247,24 +268,38 @@ export class PeopleSystem {
         ped.edgeId = edge.id;
         ped.dir = edge.a === nodeId ? 1 : -1;
         ped.s = 0;
+        this.reportCrossing(ped, edge);
         return;
       }
     }
 
-    const plain = list.map((id) => this.graph.edges.get(id)!).filter((edge) => edge.crossing === undefined);
+    const plain = list
+      .map((id) => this.graph.edges.get(id)!)
+      .filter((edge) => edge.crossing === undefined)
+      .filter((edge) => {
+        const a = edge.points[0]!;
+        const b = edge.points[edge.points.length - 1]!;
+        return !this.blockers.intersects(a.x, a.z, b.x, b.z);
+      });
     if (crossings.length > 0 && this.rng.chance(0.4)) {
       ped.state = 'wait';
       ped.nodeId = nodeId;
       ped.timer = this.rng.range(1.5, 3.5);
       ped.phase = this.rng.range(0, Math.PI * 2);
+      this.reportCrossing(ped, null);
       return;
     }
-    const pool = plain.length > 0 ? plain : list.map((id) => this.graph.edges.get(id)!);
+    const pool = plain.length > 0 ? plain : list.map((id) => this.graph.edges.get(id)!).filter((edge) => {
+      const a = edge.points[0]!;
+      const b = edge.points[edge.points.length - 1]!;
+      return !this.blockers.intersects(a.x, a.z, b.x, b.z);
+    });
     const edge = pool[Math.floor(this.rng.next() * pool.length)]!;
     ped.state = 'walk';
     ped.edgeId = edge.id;
     ped.dir = edge.a === nodeId ? 1 : -1;
     ped.s = 0;
+    this.reportCrossing(ped, edge);
   }
 
   private updatePed(ped: Ped, dt: number): void {
@@ -308,6 +343,7 @@ export class PeopleSystem {
           if (ped.state === 'walk' || ped.state === 'cross') {
             const next = this.graph.edges.get(ped.edgeId);
             ped.s = next ? Math.min(overshoot, next.length) : 0;
+            this.reportCrossing(ped, next ?? null);
           }
         }
         break;

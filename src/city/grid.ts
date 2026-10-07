@@ -1,15 +1,16 @@
-export const BLOCK = 30;
-export const ROAD = 10;
-export const SIDEWALK = 2;
+export const BLOCK = 18;
+export const ROAD = 7;
+export const SIDEWALK = 1.8;
 export const PITCH = BLOCK + ROAD;
-export const GRID_N = 3;
+export const GRID_N = 5;
 export const CITY_HALF = (GRID_N * BLOCK + (GRID_N + 1) * ROAD) / 2;
 export const ROAD_HALF = ROAD / 2;
-export const LANE_OFFSET = 2.5;
-export const INTERSECTION_NODE_DIST = 13.5;
+export const LANE_OFFSET = 1.75;
+export const INTERSECTION_NODE_DIST = 6.5;
 export const BLOCK_TOP = 1;
 export const RING_INSET = 1.6;
 export const RING_HALF = BLOCK / 2 - RING_INSET;
+export const CROSSING_OFFSET = ROAD_HALF + 1.5;
 
 export function roadCenter(i: number): number {
   return -CITY_HALF + i * PITCH + ROAD_HALF;

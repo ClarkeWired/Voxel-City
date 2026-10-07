@@ -7,7 +7,7 @@ describe('lane graph', () => {
   it('builds nodes and edges', () => {
     expect(graph.nodes.size).toBeGreaterThan(0);
     expect(graph.edges.size).toBeGreaterThan(100);
-    expect(graph.intersections.length).toBe(16);
+    expect(graph.intersections.length).toBe(36);
   });
 
   it('has consistent edge references', () => {
@@ -47,12 +47,13 @@ describe('lane graph', () => {
   });
 
   it('classifies turn maneuvers from headings', () => {
-    const southboundLeft = graph.edges.get('t:1:1:N:E');
+    const southboundLeft = graph.edges.get('t:2:2:N:E');
     expect(southboundLeft?.maneuver).toBe('left');
-    expect(southboundLeft?.needsYield).toBe(true);
-    const southboundRight = graph.edges.get('t:1:1:N:W');
+    expect(southboundLeft?.needsYield).toBe(false);
+    const southboundRight = graph.edges.get('t:2:2:N:W');
     expect(southboundRight?.maneuver).toBe('right');
-    const northboundStraight = graph.edges.get('t:1:1:S:N');
+    expect(southboundRight?.needsYield).toBe(true);
+    const northboundStraight = graph.edges.get('t:2:2:S:N');
     expect(northboundStraight?.maneuver).toBe('straight');
     expect(oppositeArm('N')).toBe('S');
     expect(oppositeArm('E')).toBe('W');
@@ -90,7 +91,7 @@ describe('lane graph', () => {
     expect(route).toContain(BUS_STOP_EDGE);
     const stopEdge = graph.edges.get(BUS_STOP_EDGE)!;
     expect(stopEdge.kind).toBe('road');
-    const shelterX = 2;
+    const shelterX = 0;
     const stopS = shelterX - stopEdge.points[0]!.x;
     expect(stopS).toBeGreaterThan(4.5);
     expect(stopS).toBeLessThanOrEqual(stopEdge.length - 4.3);

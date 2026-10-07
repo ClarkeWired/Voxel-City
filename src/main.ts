@@ -160,7 +160,7 @@ const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHe
   },
 });
 const walkGraph = buildWalkGraph();
-const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
+const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter, city.blockers);
 const barriers = new BarrierVisuals();
 const incidentVisuals = new IncidentVisuals();
 const rain = new RainVisuals(scene, new Rng(777));

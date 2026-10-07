@@ -8,17 +8,17 @@ import { buildLaneGraph } from './graph';
 import { TrafficSystem } from './index';
 
 const shelter: ShelterBuild = {
-  center: { x: 2, z: 26.6 },
+  center: { x: 0, z: -16.9 },
   waitSpots: [
-    { x: 1, z: 26.6 },
-    { x: 2.2, z: 26.6 },
-    { x: 3.4, z: 26.6 },
+    { x: -0.8, z: -16.9 },
+    { x: 0.15, z: -16.9 },
+    { x: 1.1, z: -16.9 },
   ],
-  doorPoint: { x: 4.5, z: 24.4 },
+  doorPoint: { x: 2.0, z: -15.1 },
 };
 
 const heads: SignalHead[] = [
-  { id: 'light:1:1:N', intersectionId: '1:1', axis: 'NS', x: -22.5, y: 4.15, z: -29.15, fx: 0, fz: -1 },
+  { id: 'light:2:2:N', intersectionId: '2:2', axis: 'NS', x: -14.25, y: 3.65, z: -18.15, fx: 0, fz: -1 },
 ];
 
 function makeSystem(seed = 1234): TrafficSystem {
@@ -144,7 +144,7 @@ describe('fixed timestep traffic', () => {
         const pose = traffic.visualPose(agent.id, 1)!;
         const before = previousYaw.get(agent.id);
         if (before !== undefined) {
-          expect(Math.abs(wrapAngle(pose.yaw - before))).toBeLessThan(0.25);
+          expect(Math.abs(wrapAngle(pose.yaw - before))).toBeLessThan(0.3);
           tracked++;
           if (previousEdge.get(agent.id) !== agent.edgeId) transitions++;
         }

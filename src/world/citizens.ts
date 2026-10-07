@@ -27,9 +27,10 @@ export interface CitizenState {
 
 export interface CitizenConfig {
   maxActiveTrips: number;
+  warmStart?: boolean;
 }
 
-const DEFAULT_CONFIG: CitizenConfig = { maxActiveTrips: 26 };
+const DEFAULT_CONFIG: CitizenConfig = { maxActiveTrips: 26, warmStart: true };
 
 const BLOCK_COUNT = 9;
 const WORK_WEIGHTS = [1, 2, 1, 2, 4, 2, 1, 2, 1];
@@ -132,6 +133,21 @@ export class CitizenSystem {
     for (const citizen of this.citizens) {
       citizen.location = citizen.homeBlock;
       citizen.targetBlock = citizen.workBlock;
+    }
+    if (this.config.warmStart) this.applyWarmStart(nowAt);
+  }
+
+  private applyWarmStart(nowAt: number): void {
+    const hour = ((nowAt % DAY_LENGTH) + DAY_LENGTH) % DAY_LENGTH / 60;
+    if (hour < 6.5 || hour > 10) return;
+    const rushProgress = Math.min(1, Math.max(0, (hour - 6.5) / 2.5));
+    const warmCount = Math.floor(this.citizens.length * rushProgress * 0.7);
+    for (let i = 0; i < warmCount; i++) {
+      const citizen = this.citizens[i];
+      if (!citizen || citizen.traveling) continue;
+      const departTime = dayStart(nowAt) + citizen.workStart;
+      if (departTime >= nowAt) continue;
+      citizen.nextDepart = nowAt - 1;
     }
   }
 

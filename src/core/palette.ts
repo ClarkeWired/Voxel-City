@@ -55,11 +55,11 @@ export const palette = {
   lampOff: 0x3a3f47,
 
   lightRedOn: 0xff4d3d,
-  lightRedOff: 0x4a1d1a,
+  lightRedOff: 0x1a0a08,
   lightYellowOn: 0xffc93c,
-  lightYellowOff: 0x4a3d16,
+  lightYellowOff: 0x1a1508,
   lightGreenOn: 0x3ce06e,
-  lightGreenOff: 0x174a28,
+  lightGreenOff: 0x0a1a0e,
 
   trash: 0x3f6b4a,
   hydrant: 0xc94f3d,

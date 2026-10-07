@@ -82,6 +82,8 @@ export class TrafficSystem implements AgentWorld {
   private readonly signalOffsets: ((intersectionId: string) => number) | null;
   private readonly lastCongestionReroute = new Map<number, number>();
   private readonly emergencyOverrides = new Map<string, Axis>();
+  private readonly crossingOccupancy = new Map<string, boolean>();
+  private readonly roadObstacles: { edgeId: string; s: number }[] = [];
   private readonly baselineCars: number;
   private readonly maxCars: number;
   private lastLampKey = '';
@@ -549,6 +551,36 @@ export class TrafficSystem implements AgentWorld {
       return this.signals.timeUntilGreenAt(axis, this.signalOffsets(intersectionId));
     }
     return this.signals.timeUntilGreen(axis);
+  }
+
+  crossingOccupied(axis: Axis, intersectionId: string): boolean {
+    return this.crossingOccupancy.get(`${intersectionId}:${axis}`) ?? false;
+  }
+
+  roadObstacleDistance(edge: LaneEdge): number | null {
+    let best: number | null = null;
+    for (const obstacle of this.roadObstacles) {
+      if (obstacle.edgeId !== edge.id) continue;
+      if (best === null || obstacle.s < best) best = obstacle.s;
+    }
+    return best;
+  }
+
+  addRoadObstacle(edgeId: string, s: number): void {
+    this.roadObstacles.push({ edgeId, s });
+  }
+
+  clearRoadObstacles(): void {
+    this.roadObstacles.length = 0;
+  }
+
+  setCrossingOccupied(axis: Axis, intersectionId: string, occupied: boolean): void {
+    const key = `${intersectionId}:${axis}`;
+    if (occupied) {
+      this.crossingOccupancy.set(key, true);
+    } else {
+      this.crossingOccupancy.delete(key);
+    }
   }
 
   private refreshPreemption(): void {

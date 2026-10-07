@@ -52,6 +52,14 @@ class StubWorld implements AgentWorld {
     return true;
   }
 
+  crossingOccupied(): boolean {
+    return false;
+  }
+
+  roadObstacleDistance(): number | null {
+    return null;
+  }
+
   leaderInfo(agent: VehicleAgent): { gap: number; deltaV: number } {
     let gap = Infinity;
     let deltaV = 0;

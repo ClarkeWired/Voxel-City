@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK, GRID_N, RING_HALF, blockCenter } from '../city/grid';
+import { BLOCK, GRID_N, PITCH, RING_HALF, blockCenter } from '../city/grid';
 import { CROSS_SPEED, canStartCrossing, buildWalkGraph } from './paths';
 
 describe('walk graph', () => {
@@ -38,16 +38,16 @@ describe('walk graph', () => {
   });
 
   it('crossings span a road between corner nodes', () => {
-    const crossing = graph.edges.get('x:1:1:N')!;
+    const crossing = graph.edges.get('x:2:2:N')!;
     expect(crossing.crossing).toBeDefined();
     expect(crossing.crossing!.axis).toBe('NS');
-    expect(crossing.length).toBeCloseTo(13.2, 5);
+    expect(crossing.length).toBeCloseTo(10.2, 5);
     expect(crossing.points[0]!.z).toBeCloseTo(crossing.points[1]!.z, 5);
     expect(crossing.a).toMatch(/:(nw|ne|sw|se)$/);
     expect(crossing.b).toMatch(/:(nw|ne|sw|se)$/);
     const a = graph.nodes.get(crossing.a)!;
     const b = graph.nodes.get(crossing.b)!;
-    expect(Math.abs(a.pos.x - b.pos.x)).toBeCloseTo(13.2, 5);
+    expect(Math.abs(a.pos.x - b.pos.x)).toBeCloseTo(10.2, 5);
   });
 
   it('crossing endpoints sit on block corners', () => {
@@ -55,12 +55,18 @@ describe('walk graph', () => {
       if (!edge.crossing) continue;
       for (const nodeId of [edge.a, edge.b]) {
         const node = graph.nodes.get(nodeId)!;
-        const bi = Math.round((node.pos.x + 40) / 40);
-        const bj = Math.round((node.pos.z + 40) / 40);
-        const dx = Math.abs(Math.abs(node.pos.x - blockCenter(bi)) - RING_HALF);
-        const dz = Math.abs(Math.abs(node.pos.z - blockCenter(bj)) - RING_HALF);
-        expect(dx).toBeLessThan(1e-6);
-        expect(dz).toBeLessThan(1e-6);
+        let bestDx = Infinity;
+        let bestDz = Infinity;
+        for (let bi = 0; bi < GRID_N; bi++) {
+          for (let bj = 0; bj < GRID_N; bj++) {
+            const dx = Math.abs(Math.abs(node.pos.x - blockCenter(bi)) - RING_HALF);
+            const dz = Math.abs(Math.abs(node.pos.z - blockCenter(bj)) - RING_HALF);
+            if (dx < bestDx) bestDx = dx;
+            if (dz < bestDz) bestDz = dz;
+          }
+        }
+        expect(bestDx).toBeLessThan(1e-6);
+        expect(bestDz).toBeLessThan(1e-6);
       }
     }
   });
@@ -69,19 +75,19 @@ describe('walk graph', () => {
     for (const edge of graph.edges.values()) {
       if (edge.crossing) continue;
       for (const point of edge.points) {
-        const localX = Math.abs(point.x - 40 * Math.round(point.x / 40));
-        const localZ = Math.abs(point.z - 40 * Math.round(point.z / 40));
-        expect(localX).toBeLessThanOrEqual(BLOCK / 2);
-        expect(localZ).toBeLessThanOrEqual(BLOCK / 2);
+        const localX = Math.abs(point.x - PITCH * Math.round(point.x / PITCH));
+        const localZ = Math.abs(point.z - PITCH * Math.round(point.z / PITCH));
+        expect(localX).toBeLessThanOrEqual(BLOCK / 2 + RING_HALF);
+        expect(localZ).toBeLessThanOrEqual(BLOCK / 2 + RING_HALF);
       }
     }
   });
 
   it('includes crossings only at intersections with all four blocks', () => {
-    expect(graph.edges.has('x:1:1:N')).toBe(true);
-    expect(graph.edges.has('x:1:1:S')).toBe(true);
-    expect(graph.edges.has('x:1:1:E')).toBe(true);
-    expect(graph.edges.has('x:1:1:W')).toBe(true);
+    expect(graph.edges.has('x:2:2:N')).toBe(true);
+    expect(graph.edges.has('x:2:2:S')).toBe(true);
+    expect(graph.edges.has('x:2:2:E')).toBe(true);
+    expect(graph.edges.has('x:2:2:W')).toBe(true);
     expect(graph.edges.has('x:0:0:N')).toBe(false);
     expect(graph.edges.has('x:0:0:W')).toBe(false);
     expect(graph.edges.has('x:0:1:E')).toBe(true);

@@ -74,9 +74,9 @@ function inboundPos(xc: number, zc: number, arm: Arm): Pt {
     case 'S':
       return { x: xc + LANE_OFFSET, z: zc + D };
     case 'E':
-      return { x: xc + D, z: zc - LANE_OFFSET };
+      return { x: xc + D, z: zc + LANE_OFFSET };
     case 'W':
-      return { x: xc - D, z: zc + LANE_OFFSET };
+      return { x: xc - D, z: zc - LANE_OFFSET };
   }
 }
 
@@ -87,9 +87,9 @@ function outboundPos(xc: number, zc: number, arm: Arm): Pt {
     case 'S':
       return { x: xc - LANE_OFFSET, z: zc + D };
     case 'E':
-      return { x: xc + D, z: zc + LANE_OFFSET };
+      return { x: xc + D, z: zc - LANE_OFFSET };
     case 'W':
-      return { x: xc - D, z: zc - LANE_OFFSET };
+      return { x: xc - D, z: zc + LANE_OFFSET };
   }
 }
 
@@ -233,7 +233,7 @@ export function buildLaneGraph(): LaneGraph {
             points,
             length: polylineLength(points),
             maneuver,
-            needsYield: maneuver === 'left',
+            needsYield: maneuver === 'right',
             intersectionId: id,
           });
         }
@@ -244,17 +244,17 @@ export function buildLaneGraph(): LaneGraph {
   return { nodes, edges, intersections };
 }
 
-export const BUS_STOP_EDGE = 'r:EW:2:1:2:E';
+export const BUS_STOP_EDGE = 'r:EW:2:2:3:E';
 
 export function busLoopEdgeIds(): string[] {
   return [
-    'r:EW:2:1:2:E',
-    't:2:2:W:N',
-    'r:NS:2:1:2:N',
-    't:2:1:S:W',
-    'r:EW:1:1:2:W',
-    't:1:1:E:S',
-    'r:NS:1:1:2:S',
-    't:1:2:N:E',
+    'r:EW:2:2:3:E',
+    't:3:2:W:S',
+    'r:NS:3:2:3:S',
+    't:3:3:N:W',
+    'r:EW:3:2:3:W',
+    't:2:3:E:N',
+    'r:NS:2:2:3:N',
+    't:2:2:S:E',
   ];
 }

@@ -12,12 +12,12 @@ describe('barrier placements', () => {
 
     const xs = [...new Set(placements.map((p) => p.x))].sort((a, b) => a - b);
     expect(xs.length).toBe(2);
-    expect(xs[0]).toBeCloseTo(-6.5, 5);
-    expect(xs[1]).toBeCloseTo(6.5, 5);
+    expect(xs[0]).toBeCloseTo(-31, 5);
+    expect(xs[1]).toBeCloseTo(-19, 5);
 
     const zs = placements.map((p) => p.z);
-    expect(Math.min(...zs)).toBeCloseTo(17.5 - 3.9, 5);
-    expect(Math.max(...zs)).toBeCloseTo(17.5 + 3.9, 5);
+    expect(Math.min(...zs)).toBeCloseTo(-10.75 - 3.9, 5);
+    expect(Math.max(...zs)).toBeCloseTo(-10.75 + 3.9, 5);
   });
 
   it('spans the road on both ends of a north-south edge', () => {
@@ -27,7 +27,7 @@ describe('barrier placements', () => {
     const zs = [...new Set(placements.map((p) => p.z))].sort((a, b) => a - b);
     expect(zs.length).toBe(2);
     const xs = placements.map((p) => p.x);
-    expect(Math.min(...xs)).toBeCloseTo(-22.5 - 3.9, 5);
-    expect(Math.max(...xs)).toBeCloseTo(-22.5 + 3.9, 5);
+    expect(Math.min(...xs)).toBeCloseTo(-39.25 - 3.9, 5);
+    expect(Math.max(...xs)).toBeCloseTo(-39.25 + 3.9, 5);
   });
 });

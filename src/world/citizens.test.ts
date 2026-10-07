@@ -10,7 +10,7 @@ function dueAt(system: CitizenSystem, at: number): number {
 
 describe('CitizenSystem', () => {
   it('starts with citizens at home awaiting their morning commute', () => {
-    const system = new CitizenSystem(40, new Rng(7), 8 * 60);
+    const system = new CitizenSystem(40, new Rng(7), 8 * 60, { warmStart: false });
     expect(system.count).toBe(40);
     expect(system.travelingCount).toBe(0);
     const morning = system.update(8 * 60 + 11);
@@ -154,7 +154,7 @@ describe('reloading during an active commute', () => {
   }
 
   it('restarts trips whose vehicle agent does not survive the reload', () => {
-    const system = new CitizenSystem(60, new Rng(13), 8 * 60);
+    const system = new CitizenSystem(60, new Rng(13), 8 * 60, { warmStart: false });
     const inTransit = departAt9(system);
     expect(inTransit.length).toBeGreaterThan(0);
 
@@ -190,7 +190,7 @@ describe('reloading during an active commute', () => {
   });
 
   it('leaves a trip alone while its vehicle still exists', () => {
-    const system = new CitizenSystem(60, new Rng(5), 8 * 60);
+    const system = new CitizenSystem(60, new Rng(5), 8 * 60, { warmStart: false });
     const demands = system.update(9 * 60);
     const live = demands[0]!;
     system.assignAgent(live.citizenId, 777);
@@ -207,7 +207,7 @@ describe('reloading during an active commute', () => {
   });
 
   it('does not disturb citizens who were not travelling', () => {
-    const system = new CitizenSystem(12, new Rng(8), 8 * 60);
+    const system = new CitizenSystem(12, new Rng(8), 8 * 60, { warmStart: false });
     const before = system.toJSON();
     expect(system.resumeInterruptedTrips(600, () => false)).toBe(0);
     expect(system.toJSON()).toEqual(before);

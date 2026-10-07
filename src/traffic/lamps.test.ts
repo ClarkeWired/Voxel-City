@@ -8,13 +8,13 @@ import { TrafficSystem } from './index';
 import type { LightState } from './signals';
 
 const shelter: ShelterBuild = {
-  center: { x: 2, z: 26.6 },
+  center: { x: 0, z: -16.9 },
   waitSpots: [
-    { x: 1, z: 26.6 },
-    { x: 2.2, z: 26.6 },
-    { x: 3.4, z: 26.6 },
+    { x: -0.8, z: -16.9 },
+    { x: 0.15, z: -16.9 },
+    { x: 1.1, z: -16.9 },
   ],
-  doorPoint: { x: 4.5, z: 24.4 },
+  doorPoint: { x: 2.0, z: -15.1 },
 };
 
 function head(intersectionId: string, axis: 'NS' | 'EW', x: number, z: number): SignalHead {
@@ -24,7 +24,7 @@ function head(intersectionId: string, axis: 'NS' | 'EW', x: number, z: number): 
     intersectionId,
     axis,
     x,
-    y: 4.15,
+    y: 3.65,
     z,
     fx: 0,
     fz: -1,
@@ -32,10 +32,12 @@ function head(intersectionId: string, axis: 'NS' | 'EW', x: number, z: number): 
 }
 
 const heads: SignalHead[] = [
-  head('1:1', 'NS', -22.5, -29.15),
-  head('1:1', 'EW', -29.15, -22.5),
-  head('2:2', 'NS', 17.5, 10.85),
-  head('3:3', 'NS', 57.5, 50.85),
+  head('2:2', 'NS', -14.25, -18.15),
+  head('2:2', 'EW', -18.15, -10.75),
+  head('3:3', 'NS', 10.75, 6.85),
+  head('4:4', 'NS', 35.75, 31.85),
+  head('1:1', 'NS', -39.25, -43.15),
+  head('1:1', 'EW', -31.85, -35.75),
 ];
 
 function makeSystem(options: { signalOffsets?: (id: string) => number; initialCars?: number } = {}) {
@@ -107,11 +109,11 @@ describe('signal lamp rendering', () => {
 
     expect(traffic.preemptedIntersection('1:1')).toBe('NS');
     expect(traffic.signal('NS', '1:1')).toBe('green');
-    expect(lampMatches(mesh, 0, 'green')).toBe(true);
-    expect(lampMatches(mesh, 1, traffic.signal('EW', '1:1'))).toBe(true);
+    expect(lampMatches(mesh, 4, 'green')).toBe(true);
+    expect(lampMatches(mesh, 5, traffic.signal('EW', '1:1'))).toBe(true);
 
     expect(traffic.signal('NS', '3:3')).toBe('red');
-    expect(lampMatches(mesh, 3, 'red')).toBe(true);
+    expect(lampMatches(mesh, 2, 'red')).toBe(true);
   });
 
   it('reverts the lamp when the preemption clears', () => {
@@ -123,12 +125,12 @@ describe('signal lamp rendering', () => {
     ambulance.edgeId = edge.id;
     ambulance.s = edge.length - 10;
     traffic.update(1 / 60);
-    expect(lampMatches(mesh, 0, 'green')).toBe(true);
+    expect(lampMatches(mesh, 4, 'green')).toBe(true);
 
     ambulance.edgeId = 't:1:1:N:E';
     traffic.update(1 / 60);
     expect(traffic.preemptedIntersection('1:1')).toBeUndefined();
-    expect(lampMatches(mesh, 0, traffic.signal('NS', '1:1'))).toBe(true);
+    expect(lampMatches(mesh, 4, traffic.signal('NS', '1:1'))).toBe(true);
     expect(traffic.signal('NS', '1:1')).toBe('red');
   });
 });

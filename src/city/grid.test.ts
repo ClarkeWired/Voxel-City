@@ -18,7 +18,7 @@ describe('city grid', () => {
   it('is symmetric around the origin', () => {
     expect(roadCenter(0)).toBeCloseTo(-CITY_HALF + ROAD_HALF);
     expect(roadCenter(GRID_N)).toBeCloseTo(CITY_HALF - ROAD_HALF);
-    expect(blockCenter(1)).toBeCloseTo(0);
+    expect(blockCenter(2)).toBeCloseTo(0);
   });
 
   it('a bus fits between adjacent stop lines', () => {

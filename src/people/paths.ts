@@ -1,6 +1,6 @@
 import type { Axis, Pt } from '../core/geo';
 import { polylineLength } from '../core/geo';
-import { GRID_N, RING_HALF, blockCenter, roadCenter } from '../city/grid';
+import { GRID_N, RING_HALF, ROAD_HALF, blockCenter, roadCenter } from '../city/grid';
 import type { LightState } from '../traffic/signals';
 
 export interface CrossingInfo {
@@ -33,6 +33,8 @@ export interface WalkGraph {
 export const PED_SPEED = 1.5;
 export const CROSS_SPEED = 1.7;
 export const JOG_SPEED = 2.8;
+
+const CROSSING_OFFSET = ROAD_HALF + 1.5;
 
 export function canStartCrossing(
   crossing: CrossingInfo,
@@ -126,7 +128,7 @@ export function buildWalkGraph(): WalkGraph {
       const xc = roadCenter(i);
       const zc = roadCenter(j);
       const intersectionId = `${i}:${j}`;
-      const crossingLen = 13.2;
+      const crossingLen = 2 * RING_HALF + 7;
       const duration = crossingLen / CROSS_SPEED;
 
       const tryAdd = (
@@ -151,10 +153,10 @@ export function buildWalkGraph(): WalkGraph {
         });
       };
 
-      tryAdd('N', i - 1, j - 1, 'se', i, j - 1, 'sw', { x: xc, z: zc - 6.5 }, 'NS');
-      tryAdd('S', i - 1, j, 'ne', i, j, 'nw', { x: xc, z: zc + 6.5 }, 'NS');
-      tryAdd('W', i - 1, j - 1, 'se', i - 1, j, 'ne', { x: xc - 6.5, z: zc }, 'EW');
-      tryAdd('E', i, j - 1, 'sw', i, j, 'nw', { x: xc + 6.5, z: zc }, 'EW');
+      tryAdd('N', i - 1, j - 1, 'se', i, j - 1, 'sw', { x: xc, z: zc - CROSSING_OFFSET }, 'NS');
+      tryAdd('S', i - 1, j, 'ne', i, j, 'nw', { x: xc, z: zc + CROSSING_OFFSET }, 'NS');
+      tryAdd('W', i - 1, j - 1, 'se', i - 1, j, 'ne', { x: xc - CROSSING_OFFSET, z: zc }, 'EW');
+      tryAdd('E', i, j - 1, 'sw', i, j, 'nw', { x: xc + CROSSING_OFFSET, z: zc }, 'EW');
     }
   }
 

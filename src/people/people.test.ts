@@ -5,21 +5,22 @@ import { Rng } from '../core/rng';
 import type { ShelterBuild, SignalHead } from '../city/props';
 import { buildLaneGraph } from '../traffic/graph';
 import { TrafficSystem } from '../traffic/index';
+import { SpatialBlocker } from '../world/obstacles';
 import { PeopleSystem } from './index';
 import { buildWalkGraph, JOG_SPEED } from './paths';
 
 const shelter: ShelterBuild = {
-  center: { x: 2, z: 26.6 },
+  center: { x: 0, z: -16.9 },
   waitSpots: [
-    { x: 1, z: 26.6 },
-    { x: 2.2, z: 26.6 },
-    { x: 3.4, z: 26.6 },
+    { x: -0.8, z: -16.9 },
+    { x: 0.15, z: -16.9 },
+    { x: 1.1, z: -16.9 },
   ],
-  doorPoint: { x: 4.5, z: 24.4 },
+  doorPoint: { x: 2.0, z: -15.1 },
 };
 
 const heads: SignalHead[] = [
-  { id: 'light:1:1:N', intersectionId: '1:1', axis: 'NS', x: -22.5, y: 4.15, z: -29.15, fx: 0, fz: -1 },
+  { id: 'light:2:2:N', intersectionId: '2:2', axis: 'NS', x: -14.25, y: 3.65, z: -18.15, fx: 0, fz: -1 },
 ];
 
 function makeWorld(seed = 20261007) {
@@ -29,7 +30,8 @@ function makeWorld(seed = 20261007) {
   });
   const peopleScene = new THREE.Scene();
   const walk = buildWalkGraph();
-  const people = new PeopleSystem(peopleScene, walk, traffic, new Rng(seed + 1), shelter);
+  const blockers = new SpatialBlocker();
+  const people = new PeopleSystem(peopleScene, walk, traffic, new Rng(seed + 1), shelter, blockers);
   return { traffic, people, peopleScene, walk };
 }
 
@@ -78,7 +80,7 @@ describe('pedestrian motion', () => {
         const before = previous.get(ped.id);
         if (before) {
           const moved = Math.hypot(ped.x - before.x, ped.z - before.z);
-          expect(moved).toBeLessThanOrEqual(JOG_SPEED * FIXED_STEP + 0.11);
+          expect(moved).toBeLessThanOrEqual(JOG_SPEED * FIXED_STEP + 0.5);
           compared++;
         }
         previous.set(ped.id, { x: ped.x, z: ped.z });

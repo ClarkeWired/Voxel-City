@@ -2,6 +2,8 @@ import type { Axis } from '../core/geo';
 import type { DriveConditions } from '../world/weather';
 import type { LaneEdge } from './graph';
 import type { LightState } from './signals';
+import { CROSSING_OFFSET } from '../city/grid';
+import { D } from './graph';
 
 export interface AgentWorld {
   edge(id: string): LaneEdge;
@@ -9,6 +11,8 @@ export interface AgentWorld {
   leaderInfo(agent: VehicleAgent): { gap: number; deltaV: number };
   signal(axis: Axis, intersectionId?: string): LightState;
   canEnter(agent: VehicleAgent, next: LaneEdge): boolean;
+  crossingOccupied(axis: Axis, intersectionId: string): boolean;
+  roadObstacleDistance(edge: LaneEdge): number | null;
 }
 
 export function intersectionOfNode(nodeId: string): string | undefined {
@@ -143,6 +147,24 @@ export class VehicleAgent {
         const blocked = !world.canEnter(this, nextEdge);
         if (blocked || state === 'red' || (state === 'yellow' && canStop)) {
           stopGap = distance;
+        }
+      }
+    }
+
+    if (edge.kind === 'road') {
+      const intersectionId = intersectionOfNode(edge.to);
+      if (intersectionId && world.crossingOccupied(edge.axis, intersectionId)) {
+        const crossingS = edge.length - (D - CROSSING_OFFSET);
+        const distanceToCrossing = crossingS - this.s;
+        if (distanceToCrossing > 0 && distanceToCrossing < stopGap) {
+          stopGap = distanceToCrossing;
+        }
+      }
+      const obstacleDist = world.roadObstacleDistance(edge);
+      if (obstacleDist !== null) {
+        const distanceToObstacle = obstacleDist - this.s;
+        if (distanceToObstacle > 0 && distanceToObstacle < stopGap) {
+          stopGap = distanceToObstacle;
         }
       }
     }
