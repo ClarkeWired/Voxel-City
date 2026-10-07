@@ -197,6 +197,22 @@ export class CitizenSystem {
     this.arrive(citizen, at);
   }
 
+  // Vehicle agents are not part of WorldState, so after a reload a saved trip
+  // refers to an id that can never emit 'vehicle-arrived'. Releasing those
+  // citizens keeps them departing instead of waiting forever; location still
+  // holds the origin block, so the interrupted trip restarts towards targetBlock.
+  resumeInterruptedTrips(at: number, agentExists: (agentId: number) => boolean): number {
+    let released = 0;
+    for (const citizen of this.citizens) {
+      if (!citizen.traveling || agentExists(citizen.tripAgentId)) continue;
+      citizen.traveling = false;
+      citizen.tripAgentId = -1;
+      citizen.nextDepart = at;
+      released++;
+    }
+    return released;
+  }
+
   private targetFor(citizen: CitizenState): number {
     if (citizen.activity === 'home') return citizen.workBlock;
     if (citizen.activity === 'work') {

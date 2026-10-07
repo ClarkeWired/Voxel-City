@@ -23,7 +23,7 @@ import { activeClosureEdges, createClosure } from './world/closures';
 import { CitizenSystem } from './world/citizens';
 import { IncidentSystem } from './world/incidents';
 import { WeatherSystem, conditionsFor, isWeatherKind } from './world/weather';
-import { createWorldState, deserializeWorld, serializeWorld, type WorldState } from './world/state';
+import { createWorldState, deserializeWorld, resumeRngFromSave, serializeWorld, type WorldState } from './world/state';
 
 const SAVE_KEY = 'voxel-city:save';
 const AUTOSAVE_SECONDS = 10;
@@ -40,7 +40,8 @@ function loadWorld(): WorldState | null {
   }
 }
 
-const world = loadWorld() ?? createWorldState();
+const savedWorld = loadWorld();
+const world = savedWorld ?? createWorldState();
 const params = new URLSearchParams(window.location.search);
 const timeParam = params.get('minutes');
 const startMinutes = timeParam !== null && Number.isFinite(Number(timeParam)) ? Number(timeParam) : null;
@@ -165,6 +166,11 @@ const rain = new RainVisuals(scene, new Rng(777));
 const incidents = IncidentSystem.fromJSON(world.incidents, rng);
 const busRouteEdges = new Set(busLoopEdgeIds());
 let closureCounter = 0;
+
+resumeRngFromSave(rng, savedWorld);
+citizens.resumeInterruptedTrips(simClock.worldMinutes, (agentId) =>
+  traffic.agents.some((agent) => agent.id === agentId),
+);
 
 function closedCandidates(): { edge: import('./traffic/graph').LaneEdge }[] {
   const at = simClock.worldMinutes;

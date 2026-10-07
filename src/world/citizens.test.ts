@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../core/rng';
 import { DAY_LENGTH } from './clock';
-import { CitizenSystem, parseCitizenStates } from './citizens';
+import { CitizenSystem, parseCitizenStates, type CitizenState } from './citizens';
+import { createWorldState, deserializeWorld, serializeWorld } from './state';
 
 function dueAt(system: CitizenSystem, at: number): number {
   return system.update(at).length;
@@ -141,5 +142,74 @@ describe('CitizenSystem', () => {
     expect(system.travelingCount).toBe(1);
     system.assignAgent(9999, 3);
     expect(system.travelingCount).toBe(1);
+  });
+});
+
+describe('reloading during an active commute', () => {
+  function departAt9(system: CitizenSystem): CitizenState[] {
+    const demands = system.update(9 * 60);
+    expect(demands.length).toBeGreaterThan(0);
+    for (const demand of demands) system.assignAgent(demand.citizenId, 1000 + demand.citizenId);
+    return system.toJSON().filter((citizen) => citizen.traveling);
+  }
+
+  it('restarts trips whose vehicle agent does not survive the reload', () => {
+    const system = new CitizenSystem(60, new Rng(13), 8 * 60);
+    const inTransit = departAt9(system);
+    expect(inTransit.length).toBeGreaterThan(0);
+
+    const world = createWorldState();
+    world.citizens = system.toJSON();
+    const reloaded = deserializeWorld(serializeWorld(world));
+    const restored = CitizenSystem.fromJSON(reloaded.citizens, new Rng(13));
+    expect(restored.travelingCount).toBe(inTransit.length);
+
+    expect(restored.resumeInterruptedTrips(9 * 60, () => false)).toBe(inTransit.length);
+    expect(restored.travelingCount).toBe(0);
+
+    const restarted = restored.update(9 * 60);
+    const byId = (a: number, b: number) => a - b;
+    expect(restarted.map((d) => d.citizenId).sort(byId)).toEqual(inTransit.map((c) => c.id).sort(byId));
+    for (const demand of restarted) {
+      const saved = inTransit.find((citizen) => citizen.id === demand.citizenId)!;
+      expect(demand.fromBlock).toBe(saved.location);
+      expect(demand.toBlock).toBe(saved.targetBlock);
+    }
+
+    for (const demand of restarted) {
+      restored.assignAgent(demand.citizenId, 9000 + demand.citizenId);
+      restored.handleAgentArrived(9000 + demand.citizenId, 9 * 60 + 14);
+    }
+    expect(restored.travelingCount).toBe(0);
+    for (const demand of restarted) {
+      const finished = restored.toJSON().find((citizen) => citizen.id === demand.citizenId)!;
+      expect(finished.location).toBe(demand.toBlock);
+      expect(finished.tripAgentId).toBe(-1);
+      expect(finished.activity).toBe('work');
+    }
+  });
+
+  it('leaves a trip alone while its vehicle still exists', () => {
+    const system = new CitizenSystem(60, new Rng(5), 8 * 60);
+    const demands = system.update(9 * 60);
+    const live = demands[0]!;
+    system.assignAgent(live.citizenId, 777);
+    for (const demand of demands.slice(1)) {
+      system.assignAgent(demand.citizenId, 800 + demand.citizenId);
+    }
+
+    const released = system.resumeInterruptedTrips(9 * 60, (agentId) => agentId === 777);
+    expect(released).toBe(demands.length - 1);
+    expect(system.travelingCount).toBe(1);
+    const survivor = system.toJSON().find((citizen) => citizen.id === live.citizenId)!;
+    expect(survivor.traveling).toBe(true);
+    expect(survivor.tripAgentId).toBe(777);
+  });
+
+  it('does not disturb citizens who were not travelling', () => {
+    const system = new CitizenSystem(12, new Rng(8), 8 * 60);
+    const before = system.toJSON();
+    expect(system.resumeInterruptedTrips(600, () => false)).toBe(0);
+    expect(system.toJSON()).toEqual(before);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createWorldState, deserializeWorld, serializeWorld } from './state';
+import { Rng } from '../core/rng';
+import { createWorldState, deserializeWorld, resumeRngFromSave, serializeWorld } from './state';
 import type { CitizenState } from './citizens';
 
 const sampleCitizen: CitizenState = {
@@ -167,5 +168,32 @@ describe('WorldState persistence', () => {
       JSON.stringify({ version: 5, clock: { minutes: 10, day: 2, speed: 1 }, rngState: -1.5 }),
     );
     expect(bad.rngState).toBe(0);
+  });
+});
+
+describe('rng resume after a save', () => {
+  it('continues the saved sequence draw for draw after a reload', () => {
+    const running = new Rng(20261007);
+    for (let i = 0; i < 64; i++) running.next();
+
+    const world = createWorldState();
+    world.rngState = running.snapshot();
+    const expected = Array.from({ length: 32 }, () => running.next());
+
+    const reloaded = deserializeWorld(serializeWorld(world));
+    expect(reloaded.rngState).toBe(world.rngState);
+
+    const resumed = new Rng(1);
+    resumeRngFromSave(resumed, reloaded);
+    expect(Array.from({ length: 32 }, () => resumed.next())).toEqual(expected);
+  });
+
+  it('leaves a brand new simulation on its seed when nothing was saved', () => {
+    const resumed = new Rng(20261007);
+    const control = new Rng(20261007);
+    resumeRngFromSave(resumed, null);
+    expect(resumed.snapshot()).toBe(control.snapshot());
+    expect(resumed.next()).toBe(control.next());
+    expect(resumed.next()).toBe(control.next());
   });
 });

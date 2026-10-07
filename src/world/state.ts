@@ -1,3 +1,4 @@
+import type { Rng } from '../core/rng';
 import type { ClockState } from './clock';
 import { DAY_LENGTH } from './clock';
 import type { RoadClosure } from './closures';
@@ -34,6 +35,12 @@ export function createWorldState(seedMinutes = 8 * 60): WorldState {
 
 export function serializeWorld(state: WorldState): string {
   return JSON.stringify(state);
+}
+
+// Only a world that came back from storage carries a meaningful rngState;
+// a fresh one would rewind the seed to 0, so it must be left alone.
+export function resumeRngFromSave(rng: Rng, saved: WorldState | null): void {
+  if (saved) rng.restore(saved.rngState);
 }
 
 function parseClosure(raw: unknown): RoadClosure | null {
