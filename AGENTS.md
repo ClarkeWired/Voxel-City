@@ -43,6 +43,14 @@ See `docs/ARCHITECTURE.md` for the full design.
 - 1 world unit = 1 voxel = 1 meter. Block = 30, road = 10, pitch = 40, city half = 65.
 - Visual time step is clamped to 50 ms; keep per-frame work O(n) in agents.
 
+## Local temp files & logs
+
+- Scratch output (dev-server logs, screenshots, probes, editor droppings) goes in the project-local folder **`.local/`** — e.g. `E:\Voxel-City\.local\vite.log`, `E:\Voxel-City\.local\shot-01.png`.
+- **Never** read or write `$env:TEMP`, `$TMP`, `/tmp`, or any OS temp path for this project. Those are outside the workspace, are not readable by the agent sandbox, and get lost between sessions.
+- Start long-running background processes with their redirect target inside the project, e.g.
+  `Start-Process cmd -ArgumentList '/c','npm run dev > ".local\vite.log" 2>&1' -WorkingDirectory 'E:\Voxel-City'`
+- `.local/` is git-ignored — never commit it.
+
 ## Definition of done for a feature
 
 - Tests added/updated for any pure logic change.

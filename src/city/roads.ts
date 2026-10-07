@@ -7,6 +7,12 @@ const CROSSWALK_INNER = 5;
 const CROSSWALK_OUTER = 8;
 const CROSSWALK_CENTER = 6.5;
 const STOP_LINE_DIST = 9.15;
+const MARK_Y = 0.03;
+const MARK_H = 0.05;
+const LINE_W = 0.22;
+const STRIPE_W = 0.7;
+const STRIPE_PITCH = 1.4;
+const STOP_LINE_DEPTH = 0.45;
 
 function centerlineDashes(builder: VoxelBuilder): void {
   const dashLen = 2;
@@ -24,25 +30,37 @@ function centerlineDashes(builder: VoxelBuilder): void {
         }
       }
       if (nearIntersection) continue;
-      builder.box(c, 0.05, mid, 0.35, 0.08, dashLen, palette.marking);
-      builder.box(mid, 0.05, c, dashLen, 0.08, 0.35, palette.marking);
+      builder.box(c, MARK_Y, mid, LINE_W, MARK_H, dashLen, palette.marking);
+      builder.box(mid, MARK_Y, c, dashLen, MARK_H, LINE_W, palette.marking);
     }
   }
 }
 
 function crosswalkAcrossNsRoad(builder: VoxelBuilder, cx: number, cz: number): void {
   for (let k = -3; k <= 3; k++) {
-    if (k === 0) continue;
-    const off = k * 1.65 - Math.sign(k) * 0.35;
-    builder.box(cx + off, 0.05, cz, 0.95, 0.08, CROSSWALK_OUTER - CROSSWALK_INNER, palette.marking);
+    builder.box(
+      cx + k * STRIPE_PITCH,
+      MARK_Y,
+      cz,
+      STRIPE_W,
+      MARK_H,
+      CROSSWALK_OUTER - CROSSWALK_INNER,
+      palette.marking,
+    );
   }
 }
 
 function crosswalkAcrossEwRoad(builder: VoxelBuilder, cx: number, cz: number): void {
   for (let k = -3; k <= 3; k++) {
-    if (k === 0) continue;
-    const off = k * 1.65 - Math.sign(k) * 0.35;
-    builder.box(cx, 0.05, cz + off, CROSSWALK_OUTER - CROSSWALK_INNER, 0.08, 0.95, palette.marking);
+    builder.box(
+      cx,
+      MARK_Y,
+      cz + k * STRIPE_PITCH,
+      CROSSWALK_OUTER - CROSSWALK_INNER,
+      MARK_H,
+      STRIPE_W,
+      palette.marking,
+    );
   }
 }
 
@@ -57,20 +75,21 @@ function stopLinesAndCrosswalks(builder: VoxelBuilder): void {
       if (i > 0) crosswalkAcrossEwRoad(builder, xc - CROSSWALK_CENTER, zc);
       if (i < GRID_N) crosswalkAcrossEwRoad(builder, xc + CROSSWALK_CENTER, zc);
 
-      if (j > 0) builder.box(xc - 2.5, 0.05, zc - STOP_LINE_DIST, 4.3, 0.08, 0.7, palette.marking);
-      if (j < GRID_N) builder.box(xc + 2.5, 0.05, zc + STOP_LINE_DIST, 4.3, 0.08, 0.7, palette.marking);
-      if (i > 0) builder.box(xc - STOP_LINE_DIST, 0.05, zc + 2.5, 0.7, 0.08, 4.3, palette.marking);
-      if (i < GRID_N) builder.box(xc + STOP_LINE_DIST, 0.05, zc - 2.5, 0.7, 0.08, 4.3, palette.marking);
+      if (j > 0) builder.box(xc - 2.5, MARK_Y, zc - STOP_LINE_DIST, 4.3, MARK_H, STOP_LINE_DEPTH, palette.marking);
+      if (j < GRID_N) builder.box(xc + 2.5, MARK_Y, zc + STOP_LINE_DIST, 4.3, MARK_H, STOP_LINE_DEPTH, palette.marking);
+      if (i > 0) builder.box(xc - STOP_LINE_DIST, MARK_Y, zc + 2.5, STOP_LINE_DEPTH, MARK_H, 4.3, palette.marking);
+      if (i < GRID_N) builder.box(xc + STOP_LINE_DIST, MARK_Y, zc - 2.5, STOP_LINE_DEPTH, MARK_H, 4.3, palette.marking);
     }
   }
 }
 
 export function buildRoads(builder: VoxelBuilder, rng: Rng): void {
   const outer = CITY_HALF + 22;
-  builder.box(0, -1, -CITY_HALF - 11, outer * 2, 1, (outer - CITY_HALF) * 2, palette.grass);
-  builder.box(0, -1, CITY_HALF + 11, outer * 2, 1, (outer - CITY_HALF) * 2, palette.grass);
-  builder.box(-CITY_HALF - 11, -1, 0, (outer - CITY_HALF) * 2, 1, CITY_HALF * 2, palette.grass);
-  builder.box(CITY_HALF + 11, -1, 0, (outer - CITY_HALF) * 2, 1, CITY_HALF * 2, palette.grass);
+  const band = outer - CITY_HALF;
+  builder.box(0, -1, -CITY_HALF - band / 2, outer * 2, 1, band, palette.grass);
+  builder.box(0, -1, CITY_HALF + band / 2, outer * 2, 1, band, palette.grass);
+  builder.box(-CITY_HALF - band / 2, -1, 0, band, 1, CITY_HALF * 2, palette.grass);
+  builder.box(CITY_HALF + band / 2, -1, 0, band, 1, CITY_HALF * 2, palette.grass);
 
   builder.box(0, -1, 0, CITY_HALF * 2, 1, CITY_HALF * 2, palette.asphalt);
 

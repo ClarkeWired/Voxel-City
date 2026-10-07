@@ -93,7 +93,7 @@ export class TrafficSystem implements AgentWorld {
     this.baselineCars = options.initialCars ?? CAR_COUNT;
     this.maxCars = options.maxCars ?? MAX_CARS;
     this.bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
-    this.wheelMaterial = new THREE.MeshLambertMaterial({ color: palette.carTire });
+    this.wheelMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
 
     const anchors: string[] = [];
     for (let bi = 0; bi < GRID_N; bi++) {
@@ -170,7 +170,7 @@ export class TrafficSystem implements AgentWorld {
   private trySpawn(
     edge: LaneEdge,
     dest: string,
-    overrides?: { kind?: VehicleKind; color?: number; maxSpeed?: number },
+    overrides?: { kind?: VehicleKind; color?: number; maxSpeed?: number; emergency?: boolean },
   ): VehicleAgent | null {
     const closed = this.closedEdges();
     if (closed.has(edge.id)) return null;
@@ -190,7 +190,12 @@ export class TrafficSystem implements AgentWorld {
       routeIndex: 0,
     });
     this.destinations.set(agent.id, dest);
-    this.addAgent(agent, kind, overrides?.color ?? CAR_COLORS[this.rng.int(0, CAR_COLORS.length - 1)]!);
+    this.addAgent(
+      agent,
+      kind,
+      overrides?.color ?? CAR_COLORS[this.rng.int(0, CAR_COLORS.length - 1)]!,
+      overrides?.emergency,
+    );
     return agent;
   }
 
@@ -232,6 +237,7 @@ export class TrafficSystem implements AgentWorld {
         kind: 'van',
         color: palette.carWhite,
         maxSpeed: 9.5,
+        emergency: true,
       });
       if (agent) {
         this.attachEmergencyLight(agent.id);
@@ -245,17 +251,17 @@ export class TrafficSystem implements AgentWorld {
     const view = this.views.get(agentId);
     if (!view) return;
     const light = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.24, 0.5),
+      new THREE.BoxGeometry(0.3, 0.2, 1.1),
       new THREE.MeshBasicMaterial({ color: palette.lightRedOn }),
     );
-    light.position.set(-0.3, 2.15, 0);
+    light.position.set(-0.4, 2.06, 0);
     view.group.add(light);
     this.emergencyLights.set(agentId, light);
   }
 
-  private addAgent(agent: VehicleAgent, kind: VehicleKind, color: number): void {
+  private addAgent(agent: VehicleAgent, kind: VehicleKind, color: number, emergency = false): void {
     this.agents.push(agent);
-    const view = new VehicleView(kind, color, this.bodyMaterial, this.wheelMaterial);
+    const view = new VehicleView(kind, color, this.bodyMaterial, this.wheelMaterial, emergency);
     view.update(0, 0, 0, 0, 0);
     this.scene.add(view.group);
     this.views.set(agent.id, view);

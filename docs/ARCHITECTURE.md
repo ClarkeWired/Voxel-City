@@ -14,8 +14,9 @@
 - All boxes are axis-aligned. Two strategies:
   - **Static city**: one `VoxelBuilder` → single `THREE.InstancedMesh` with per-instance color (1 draw call for the whole city).
   - **Dynamic models** (vehicles, people): `buildMergedGeometry()` merges voxel boxes into one `BufferGeometry` with vertex colors.
-- Wheels are low-poly cylinders merged per side (2 meshes per vehicle, correct spin pivot).
+- Wheels are low-poly cylinders merged per side (2 meshes per vehicle, correct spin pivot), with a lighter hub disc merged into the same geometry, so the wheels carry vertex colours too.
 - Materials are shared `MeshLambertMaterial`s; lighting is one hemisphere + one shadow-casting directional light. `NoToneMapping` keeps the palette flat and vivid like the reference art.
+- The default camera sits 120 m out at a ~37° elevation looking at the showcase street, so a frame shows the whole 130 m city instead of magnifying individual models.
 
 ## Roads & city (`src/city/`)
 
@@ -58,7 +59,7 @@
   - **Per-intersection offsets** (opt-in `signalOffsets` option): each intersection can phase-shift the shared cycle; the app uses an eastbound green wave (`ix * 5 s`), so platoons released at one junction tend to catch the next green.
   - `canEnter`: blocks entering an occupied intersection; left turns also yield to oncoming traffic (with an id tie-break so two opposing left-turners cannot deadlock).
   - emits `bus-arrived` / `bus-departed` / `vehicle-arrived` events. `main.ts` is the single consumer and forwards each event to the people system and the citizen system.
-- `views.ts`: vehicle voxel models (bus, sedan, van) + wheel rigs; body geometries are cached per kind/color.
+- `views.ts`: vehicle voxel models (bus, sedan, van + emergency van) + wheel rigs; body geometries are cached per kind/color/emergency. Every model is built on one shared convention: a dark floor pan inset inside the body sides, lower body boxes that stop short of the wheel openings so the arches are real gaps, a belt line that bridges over them, and wheels whose outer face always lands inside the body width.
 - Spawning is deterministic from the shared `Rng`; a 14-unit spacing check prevents overlaps.
 
 ## People (`src/people/`)
@@ -92,6 +93,8 @@ Pure modules are covered by vitest:
 - `paths.test.ts` — walk graph connectivity, crossing geometry, crossing safety predicate.
 - `rng.test.ts` / `voxel.test.ts` / `font.test.ts` — determinism, mesh sizes, mirrored text.
 - `clock.test.ts` / `state.test.ts` — time advancement/rollover/speeds, daylight curve, save/load round-trip and rejection of corrupt payloads.
+
+Scratch artefacts (dev-server logs, screenshots, probes) belong in the project-local `.local/` folder, which is git-ignored. Never use the OS temp directory (`$env:TEMP`, `/tmp`) for this repository — it sits outside the workspace and is not readable by the agent sandbox.
 
 ## Known trade-offs / next ideas
 

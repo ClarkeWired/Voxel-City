@@ -56,8 +56,8 @@ scene.background = skyColor;
 const sceneFog = new THREE.Fog(palette.fog, 150, 340);
 scene.fog = sceneFog;
 
-const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 700);
-camera.position.set(32, 46, 58);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 700);
+camera.position.set(56, 76, 98);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -67,17 +67,17 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.NoToneMapping;
 app.appendChild(renderer.domElement);
 
-const hemi = new THREE.HemisphereLight(palette.sky, 0x8a8f7a, 0.95);
+const hemi = new THREE.HemisphereLight(palette.sky, 0x7d8272, 0.9);
 scene.add(hemi);
 
-const sun = new THREE.DirectionalLight(0xfff3d6, 1.5);
+const sun = new THREE.DirectionalLight(0xfff3d6, 2);
 sun.position.set(70, 110, 45);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -100;
-sun.shadow.camera.right = 100;
-sun.shadow.camera.top = 100;
-sun.shadow.camera.bottom = -100;
+sun.shadow.camera.left = -110;
+sun.shadow.camera.right = 110;
+sun.shadow.camera.top = 110;
+sun.shadow.camera.bottom = -110;
 sun.shadow.camera.near = 10;
 sun.shadow.camera.far = 320;
 sun.shadow.bias = -0.0006;
@@ -100,7 +100,7 @@ function applyEnvironment(weatherDim: number): void {
   const arc = sunArc(minutes);
 
   sun.position.set(arc.x, Math.max(arc.y, 10), arc.z);
-  sun.intensity = (0.06 + 1.5 * daylight) * (1 - 0.55 * weatherDim);
+  sun.intensity = (0.05 + 2.05 * daylight) * (1 - 0.5 * weatherDim);
   sun.color.copy(SUN_LOW).lerp(SUN_HIGH, Math.min(1, Math.max(0, arc.y / 90)));
 
   skyScratch.copy(NIGHT_SKY).lerp(DAY_SKY, daylight);
@@ -109,14 +109,14 @@ function applyEnvironment(weatherDim: number): void {
   skyColor.copy(skyScratch);
   sceneFog.color.copy(skyScratch);
 
-  hemi.intensity = (0.16 + 0.85 * daylight) * (1 - 0.35 * weatherDim);
+  hemi.intensity = (0.14 + 0.76 * daylight) * (1 - 0.4 * weatherDim);
   hemi.color.copy(skyScratch);
 
   if (city.nightMesh) city.nightMesh.visible = daylight < 0.35;
 }
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 2, 20);
+controls.target.set(0, 3, 18);
 controls.minDistance = 12;
 controls.maxDistance = 260;
 controls.maxPolarAngle = 1.45;
