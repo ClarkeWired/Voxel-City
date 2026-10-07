@@ -1,4 +1,5 @@
 import type { Axis } from '../core/geo';
+import type { DriveConditions } from '../world/weather';
 import type { LaneEdge } from './graph';
 import type { LightState } from './signals';
 
@@ -36,11 +37,11 @@ const IDM_S0 = 1.8;
 const IDM_T = 0.85;
 const BRAKE = 6.5;
 
-function idm(v: number, v0: number, gap: number, deltaV: number): number {
+function idm(v: number, v0: number, gap: number, deltaV: number, headway: number, brake: number): number {
   const free = 1 - Math.pow(v / Math.max(v0, 0.5), 4);
   let interaction = 0;
   if (gap < 100) {
-    const sStar = IDM_S0 + Math.max(0, v * IDM_T + (v * deltaV) / (2 * Math.sqrt(IDM_A * IDM_B)));
+    const sStar = IDM_S0 + Math.max(0, v * headway + (v * deltaV) / (2 * Math.sqrt(IDM_A * brake)));
     const safe = Math.max(gap, 0.1);
     interaction = (sStar / safe) ** 2;
   }
@@ -62,6 +63,9 @@ export class VehicleAgent {
   dwelling = 0;
   arrived = false;
   arrivedStop: AgentStop | null = null;
+  speedFactor = 1;
+  headwayFactor = 1;
+  brakeFactor = 1;
   private rng: () => number;
 
   constructor(opts: AgentOptions) {
@@ -75,6 +79,12 @@ export class VehicleAgent {
     this.routeIndex = opts.routeIndex ?? 0;
     this.routeLoop = opts.routeLoop ?? false;
     this.stops = opts.stops ?? [];
+  }
+
+  setConditions(conditions: DriveConditions | null): void {
+    this.speedFactor = conditions?.speedFactor ?? 1;
+    this.headwayFactor = conditions?.headwayFactor ?? 1;
+    this.brakeFactor = conditions?.brakeFactor ?? 1;
   }
 
   consumeStopEvent(): AgentStop | null {
@@ -122,7 +132,7 @@ export class VehicleAgent {
       if (edge.kind === 'road' && nextEdge.kind === 'turn') {
         const distance = edge.length - this.s;
         const state = world.signal(edge.axis);
-        const canStop = distance > (this.v * this.v) / (2 * BRAKE) + 0.8;
+        const canStop = distance > (this.v * this.v) / (2 * BRAKE * this.brakeFactor) + 0.8;
         const blocked = !world.canEnter(this, nextEdge);
         if (blocked || state === 'red' || (state === 'yellow' && canStop)) {
           stopGap = distance;
@@ -138,7 +148,7 @@ export class VehicleAgent {
       deltaV = this.v;
     }
 
-    const a = idm(this.v, this.maxSpeed, gap, deltaV);
+    const a = idm(this.v, this.maxSpeed * this.speedFactor, gap, deltaV, IDM_T * this.headwayFactor, IDM_B * this.brakeFactor);
     this.v = Math.max(0, this.v + a * dt);
     const prevS = this.s;
     this.s += this.v * dt;

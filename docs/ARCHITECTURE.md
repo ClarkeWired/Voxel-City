@@ -28,8 +28,9 @@
 
 - `clock.ts`: `SimulationClock` (minutes in the day, day counter, speed multiplier; speeds 0/1/4/16x, 1x = 1 simulated minute per real second). Pure helpers `daylightFactor`, `horizonWarmth` and `sunArc` define the sun curve (sunrise 06:00, sunset 20:00) and are unit-tested independently of rendering.
 - `citizens.ts`: `CitizenSystem` gives the city reasons for journeys. Each citizen has a home/work/shop block and daily schedule (work start ≈ 08:00 ± 50 min, work end ≈ 17:00 ± 50 min, ~45 % make a post-work shop trip). It emits `TravelDemand` requests when activities come due, tracks the assigned vehicle agent, and reschedules on arrival (`home → work → shop → home`, then the next morning). Active trips are capped; failed requests defer a few minutes. Morning and evening peaks therefore emerge from schedules rather than spawning rules. Fully JSON-serialisable.
-- `state.ts`: versioned `WorldState` (clock + RNG snapshot + closures + citizens) with validated JSON `serializeWorld`/`deserializeWorld`; v1/v2 saves migrate to v3. The app autosaves to `localStorage` every 10 s and on unload; corrupt or outdated saves are discarded and a fresh 08:00 world starts.
-- Rendering observes the clock: sun position/intensity/colour, sky, fog and hemisphere light all follow the daylight curve. `?minutes=MMM` overrides the start time (demo/screenshot helper).
+- `weather.ts`: `WeatherSystem` runs deterministic weather windows (clear/rain/storm/fog, 15–45 min each, Markov transitions, fog favoured on mornings). `conditionsFor(weather)` derives `DriveConditions` (`speedFactor`, `headwayFactor`, `brakeFactor`, `visibility`) that the vehicle agents consume: bad weather lowers desired speed, shrinks comfortable braking and stretches headways, so journeys take longer. Rendering derives fog range and sky/light dimming from `visibility` (state → behaviour → visible effect). Serialised in `WorldState`.
+- `state.ts`: versioned `WorldState` (clock + RNG snapshot + closures + citizens + weather) with validated JSON `serializeWorld`/`deserializeWorld`; v1–v3 saves migrate to v4. The app autosaves to `localStorage` every 10 s and on unload; corrupt or outdated saves are discarded and a fresh 08:00 world starts.
+- Rendering observes the clock: sun position/intensity/colour, sky, fog and hemisphere light all follow the daylight curve, modulated by weather. `?minutes=MMM` overrides the start time and `?weather=storm|rain|fog|clear` forces a weather state (demo/screenshot helpers).
 - `Rng.snapshot()/restore()` make the seeded stream resumable for full-world saves.
 
 ## Traffic (`src/traffic/`)
@@ -78,6 +79,7 @@ Pure modules are covered by vitest:
 - `routing.test.ts` — contiguous routes, trivial same-node routes, closure avoidance with a different path, unreachable destinations, remaining-path scanning.
 - `closures.test.ts` — closure windows, day-spanning closures, active-edge collection.
 - `citizens.test.ts` — morning departures, trip caps, home→work→shop→home lifecycle, morning rush vs midday demand, full-day accounting, deferral, JSON round-trip.
+- `weather.test.ts` — condition curves per kind/intensity, deterministic windows/transitions, parser round-trip and junk rejection.
 - `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; every car has an origin→destination route; cars retire on arrival; closures trigger rerouting; trip requests spawn near the origin block within the fleet cap; all views get positioned; signal lamps reflect the phase.
 - `paths.test.ts` — walk graph connectivity, crossing geometry, crossing safety predicate.
 - `rng.test.ts` / `voxel.test.ts` / `font.test.ts` — determinism, mesh sizes, mirrored text.

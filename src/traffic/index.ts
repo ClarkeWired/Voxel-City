@@ -16,6 +16,7 @@ import {
 } from './graph';
 import { findRoute, nearestNodeId, routeContainsClosed } from './routing';
 import { SignalController, type LightState } from './signals';
+import type { DriveConditions } from '../world/weather';
 import { CAR_COLORS, VehicleView, type VehicleKind } from './views';
 
 export type TrafficEvent =
@@ -33,6 +34,7 @@ export interface TrafficOptions {
   closedEdges?: () => ReadonlySet<string>;
   initialCars?: number;
   maxCars?: number;
+  conditions?: () => DriveConditions | null;
 }
 
 export class TrafficSystem implements AgentWorld {
@@ -56,6 +58,7 @@ export class TrafficSystem implements AgentWorld {
   private readonly events: TrafficEvent[] = [];
   private readonly busAgent: VehicleAgent;
   private readonly closedEdges: () => ReadonlySet<string>;
+  private readonly conditions: () => DriveConditions | null;
   private readonly baselineCars: number;
   private readonly maxCars: number;
   private lastLampKey = '';
@@ -76,6 +79,7 @@ export class TrafficSystem implements AgentWorld {
     this.rng = rng;
     this.scene = scene;
     this.closedEdges = options.closedEdges ?? (() => EMPTY_EDGES);
+    this.conditions = options.conditions ?? (() => null);
     this.baselineCars = options.initialCars ?? CAR_COUNT;
     this.maxCars = options.maxCars ?? MAX_CARS;
     this.bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -226,6 +230,9 @@ export class TrafficSystem implements AgentWorld {
   update(dt: number): void {
     this.signals.update(dt);
     this.updateLamps();
+
+    const conditions = this.conditions();
+    for (const agent of this.agents) agent.setConditions(conditions);
 
     const closed = this.closedEdges();
 

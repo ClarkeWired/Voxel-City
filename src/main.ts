@@ -18,6 +18,7 @@ import {
 } from './world/clock';
 import { activeClosureEdges, createClosure } from './world/closures';
 import { CitizenSystem } from './world/citizens';
+import { WeatherSystem, conditionsFor, isWeatherKind } from './world/weather';
 import { createWorldState, deserializeWorld, serializeWorld, type WorldState } from './world/state';
 
 const SAVE_KEY = 'voxel-city:save';
@@ -36,7 +37,8 @@ function loadWorld(): WorldState | null {
 }
 
 const world = loadWorld() ?? createWorldState();
-const timeParam = new URLSearchParams(window.location.search).get('minutes');
+const params = new URLSearchParams(window.location.search);
+const timeParam = params.get('minutes');
 const startMinutes = timeParam !== null && Number.isFinite(Number(timeParam)) ? Number(timeParam) : null;
 let simClock =
   startMinutes !== null
@@ -46,7 +48,8 @@ let simClock =
 const scene = new THREE.Scene();
 const skyColor = new THREE.Color(palette.sky);
 scene.background = skyColor;
-scene.fog = new THREE.Fog(palette.fog, 150, 340);
+const sceneFog = new THREE.Fog(palette.fog, 150, 340);
+scene.fog = sceneFog;
 
 const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 700);
 camera.position.set(32, 46, 58);
@@ -80,26 +83,28 @@ scene.add(sun.target);
 const NIGHT_SKY = new THREE.Color(0x16202f);
 const DUSK_SKY = new THREE.Color(0xf7b56b);
 const DAY_SKY = new THREE.Color(palette.sky);
+const STORM_SKY = new THREE.Color(0x7d8794);
 const SUN_LOW = new THREE.Color(0xff9a4d);
 const SUN_HIGH = new THREE.Color(0xfff3d6);
 const skyScratch = new THREE.Color();
 
-function applyDaylight(): void {
+function applyEnvironment(weatherDim: number): void {
   const minutes = simClock.minutes;
   const daylight = daylightFactor(minutes);
   const warmth = horizonWarmth(minutes);
   const arc = sunArc(minutes);
 
   sun.position.set(arc.x, Math.max(arc.y, 10), arc.z);
-  sun.intensity = 0.06 + 1.5 * daylight;
+  sun.intensity = (0.06 + 1.5 * daylight) * (1 - 0.55 * weatherDim);
   sun.color.copy(SUN_LOW).lerp(SUN_HIGH, Math.min(1, Math.max(0, arc.y / 90)));
 
   skyScratch.copy(NIGHT_SKY).lerp(DAY_SKY, daylight);
   skyScratch.lerp(DUSK_SKY, 0.5 * warmth * (1 - Math.abs(2 * daylight - 1)));
+  skyScratch.lerp(STORM_SKY, weatherDim * daylight);
   skyColor.copy(skyScratch);
-  scene.fog!.color.copy(skyScratch);
+  sceneFog.color.copy(skyScratch);
 
-  hemi.intensity = 0.16 + 0.85 * daylight;
+  hemi.intensity = (0.16 + 0.85 * daylight) * (1 - 0.35 * weatherDim);
   hemi.color.copy(skyScratch);
 }
 
@@ -130,9 +135,16 @@ const citizens =
   world.citizens.length > 0
     ? CitizenSystem.fromJSON(world.citizens, rng)
     : new CitizenSystem(60, rng, simClock.worldMinutes);
+const weatherParam = params.get('weather');
+const weather = isWeatherKind(weatherParam)
+  ? new WeatherSystem(rng, { kind: weatherParam, intensity: 0.85, until: simClock.worldMinutes + 180 }, simClock.worldMinutes)
+  : world.weather
+    ? WeatherSystem.fromJSON(world.weather, rng, simClock.worldMinutes)
+    : new WeatherSystem(rng, undefined, simClock.worldMinutes);
 const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHeads, {
   closedEdges: () => closureEdgeSet,
   initialCars: 0,
+  conditions: () => conditionsFor(weather.current),
 });
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
@@ -195,6 +207,7 @@ function saveWorld(): void {
     world.clock = simClock.toJSON();
     world.rngState = rng.snapshot();
     world.citizens = citizens.toJSON();
+    world.weather = weather.toJSON();
     window.localStorage.setItem(SAVE_KEY, serializeWorld(world));
   } catch {
     // storage may be unavailable or full; the simulation keeps running
@@ -226,7 +239,11 @@ function frame(): void {
   }
   barriers.update(scene, graph, world.closures, at);
 
-  applyDaylight();
+  weather.update(at);
+  const conditions = conditionsFor(weather.current);
+  sceneFog.near = 60 + 90 * conditions.visibility;
+  sceneFog.far = 140 + 200 * conditions.visibility;
+  applyEnvironment(1 - conditions.visibility);
   traffic.update(dt);
   for (const event of traffic.consumeEvents()) {
     people.handleEvent(event);
@@ -245,9 +262,13 @@ function frame(): void {
     lastStatsUpdate = elapsed;
     const fps = Math.round(1 / Math.max(dt, 0.0001));
     const closureInfo = closureEdgeSet.size > 0 ? ` · ${closureEdgeSet.size} closures` : '';
+    const weatherInfo =
+      weather.current.kind === 'clear'
+        ? ''
+        : ` · ${weather.current.kind} ${Math.round(weather.current.intensity * 100)}%`;
     stats.textContent =
       `${traffic.vehicleCount} vehicles · ${citizens.travelingCount} commuters · ` +
-      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo} · ${fps} fps`;
+      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo}${weatherInfo} · ${fps} fps`;
   }
   requestAnimationFrame(frame);
 }
@@ -264,6 +285,10 @@ if (new URLSearchParams(window.location.search).has('closure')) {
   toggleRandomClosure({ x: 14, z: 20 });
 }
 
-applyDaylight();
+weather.update(simClock.worldMinutes);
+const initialConditions = conditionsFor(weather.current);
+sceneFog.near = 60 + 90 * initialConditions.visibility;
+sceneFog.far = 140 + 200 * initialConditions.visibility;
+applyEnvironment(1 - initialConditions.visibility);
 renderer.render(scene, camera);
 requestAnimationFrame(frame);

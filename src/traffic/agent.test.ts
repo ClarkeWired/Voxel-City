@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Pt } from '../core/geo';
+import { conditionsFor } from '../world/weather';
 import { VehicleAgent, type AgentWorld } from './agent';
 import type { LaneEdge, LaneNode } from './graph';
 import type { LightState } from './signals';
@@ -140,6 +141,19 @@ describe('VehicleAgent', () => {
       expect(gap).toBeGreaterThan(0.8);
     }
     expect(sorted[sorted.length - 1]!.s).toBeLessThanOrEqual(30);
+  });
+
+  it('drives slower in storm conditions than in clear weather', () => {
+    const world = makeWorld();
+    world.signalState = 'green';
+    const clearCar = new VehicleAgent({ id: 1, edgeId: 'e1', s: 0, maxSpeed: 7, length: 4, rng: () => 0.5 });
+    const stormCar = new VehicleAgent({ id: 2, edgeId: 'e1', s: 0, maxSpeed: 7, length: 4, rng: () => 0.5 });
+    clearCar.setConditions(null);
+    stormCar.setConditions(conditionsFor({ kind: 'storm', intensity: 1, until: 0 }));
+    world.agents = [clearCar, stormCar];
+    step(world, [clearCar, stormCar], 4);
+    expect(clearCar.s).toBeGreaterThan(stormCar.s + 2);
+    expect(stormCar.v).toBeLessThan(clearCar.v);
   });
 
   it('arrives at a bus stop and dwells', () => {
