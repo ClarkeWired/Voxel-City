@@ -41,6 +41,23 @@ export function samplePolyline(points: readonly Pt[], s: number): Pose {
   return { x: last.x, z: last.z, dx: 0, dz: 1 };
 }
 
+export function wrapAngle(radians: number): number {
+  const twoPi = Math.PI * 2;
+  return (((radians + Math.PI) % twoPi) + twoPi) % twoPi - Math.PI;
+}
+
+export function lerpAngle(from: number, to: number, t: number): number {
+  return from + wrapAngle(to - from) * t;
+}
+
+export function lerpScalar(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
+}
+
+export function clamp01(value: number): number {
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
 export function polylinePoint(points: readonly Pt[], s: number): Pt {
   const p = samplePolyline(points, s);
   return { x: p.x, z: p.z };

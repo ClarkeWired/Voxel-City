@@ -72,6 +72,8 @@ export class VehicleAgent {
   headwayFactor = 1;
   brakeFactor = 1;
   private rng: () => number;
+  private accel = 0;
+  private crossingStop: AgentStop | null = null;
 
   constructor(opts: AgentOptions) {
     this.id = opts.id;
@@ -120,10 +122,10 @@ export class VehicleAgent {
     return candidates[candidates.length - 1]!.id;
   }
 
-  update(dt: number, world: AgentWorld): void {
+  decide(dt: number, world: AgentWorld): void {
     if (this.dwelling > 0) {
-      this.dwelling -= dt;
-      this.v = 0;
+      this.accel = 0;
+      this.crossingStop = null;
       return;
     }
     const edge = world.edge(this.edgeId);
@@ -153,23 +155,40 @@ export class VehicleAgent {
       deltaV = this.v;
     }
 
-    const a = idm(this.v, this.maxSpeed * this.speedFactor, gap, deltaV, IDM_T * this.headwayFactor, IDM_B * this.brakeFactor);
-    this.v = Math.max(0, this.v + a * dt);
-    const prevS = this.s;
-    this.s += this.v * dt;
+    this.accel = idm(this.v, this.maxSpeed * this.speedFactor, gap, deltaV, IDM_T * this.headwayFactor, IDM_B * this.brakeFactor);
 
+    const predicted = this.s + Math.max(0, this.v + this.accel * dt) * dt;
+    this.crossingStop = null;
     for (const stop of this.stops) {
       if (stop.done || stop.edgeId !== this.edgeId) continue;
-      if (prevS <= stop.s && this.s >= stop.s) {
-        this.s = stop.s;
-        this.v = 0;
-        this.dwelling = stop.dwell;
-        stop.done = true;
-        this.arrivedStop = stop;
+      if (this.s <= stop.s && predicted >= stop.s) {
+        this.crossingStop = stop;
         break;
       }
     }
+  }
 
+  commit(dt: number, world: AgentWorld): void {
+    if (this.dwelling > 0) {
+      this.dwelling -= dt;
+      this.v = 0;
+      return;
+    }
+    this.v = Math.max(0, this.v + this.accel * dt);
+    const prevS = this.s;
+    this.s += this.v * dt;
+
+    const stop = this.crossingStop;
+    this.crossingStop = null;
+    if (stop && !stop.done && stop.edgeId === this.edgeId && prevS <= stop.s && this.s >= stop.s) {
+      this.s = stop.s;
+      this.v = 0;
+      this.dwelling = stop.dwell;
+      stop.done = true;
+      this.arrivedStop = stop;
+    }
+
+    const edge = world.edge(this.edgeId);
     if (this.s >= edge.length) {
       if (this.next !== undefined) {
         const nextEdge = world.edge(this.next);
@@ -190,5 +209,10 @@ export class VehicleAgent {
         this.arrived = true;
       }
     }
+  }
+
+  update(dt: number, world: AgentWorld): void {
+    this.decide(dt, world);
+    this.commit(dt, world);
   }
 }

@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { Pt } from '../core/geo';
-import { samplePolyline } from '../core/geo';
+import { clamp01, lerpAngle, lerpScalar, samplePolyline } from '../core/geo';
 import type { Rng } from '../core/rng';
 import type { ShelterBuild } from '../city/props';
 import type { TrafficEvent, TrafficSystem } from '../traffic/index';
@@ -9,6 +9,7 @@ import { animateRig, createPersonRig, type PersonRig } from './person';
 
 interface Ped {
   rig: PersonRig;
+  id: number;
   role: 'walker' | 'waiter';
   state: 'walk' | 'cross' | 'wait' | 'idle' | 'board';
   edgeId: string;
@@ -20,12 +21,28 @@ interface Ped {
   speed: number;
   phase: number;
   lateral: number;
+  ox: number;
+  oz: number;
   x: number;
   z: number;
   y: number;
+  vy: number;
   yaw: number;
+  px: number;
+  pz: number;
+  py: number;
+  pyaw: number;
   boardFrom: Pt | null;
   dead: boolean;
+}
+
+export interface PedState {
+  id: number;
+  edgeId: string;
+  s: number;
+  state: Ped['state'];
+  x: number;
+  z: number;
 }
 
 const SIDEWALK_Y = 1.04;
@@ -39,6 +56,7 @@ export class PeopleSystem {
   private readonly scene: THREE.Scene;
   private readonly shelter: ShelterBuild;
   private readonly peds: Ped[] = [];
+  private nextPedId = 1;
   private walkerSpawnTimer = 4;
   private waiterSpawnTimer = -1;
 
@@ -67,26 +85,40 @@ export class PeopleSystem {
     const edgeId = node.edges[Math.floor(this.rng.next() * node.edges.length)]!;
     const edge = this.graph.edges.get(edgeId)!;
     const dir: 1 | -1 = this.rng.chance(0.5) ? 1 : -1;
+    const s = initial ? this.rng.range(0, edge.length) : 0;
     const ped: Ped = {
       rig: createPersonRig(this.rng),
+      id: this.nextPedId++,
       role: 'walker',
       state: edge.crossing ? 'cross' : 'walk',
       edgeId,
       dir,
-      s: initial ? this.rng.range(0, edge.length) : 0,
+      s,
       nodeId: '',
       timer: 0,
       waitSpot: -1,
       speed: PED_SPEED * this.rng.range(0.85, 1.15),
       phase: this.rng.range(0, Math.PI * 2),
       lateral: this.rng.range(-0.35, 0.35),
+      ox: 0,
+      oz: 0,
       x: 0,
       z: 0,
       y: SIDEWALK_Y,
+      vy: SIDEWALK_Y,
       yaw: 0,
+      px: 0,
+      pz: 0,
+      py: SIDEWALK_Y,
+      pyaw: 0,
       boardFrom: null,
       dead: false,
     };
+    this.placeOnPath(ped, edge);
+    ped.px = ped.x;
+    ped.pz = ped.z;
+    ped.py = ped.vy;
+    ped.pyaw = ped.yaw;
     this.peds.push(ped);
     this.scene.add(ped.rig.group);
   }
@@ -96,6 +128,7 @@ export class PeopleSystem {
     if (!spot) return;
     const ped: Ped = {
       rig: createPersonRig(this.rng),
+      id: this.nextPedId++,
       role: 'waiter',
       state: 'idle',
       edgeId: '',
@@ -107,15 +140,34 @@ export class PeopleSystem {
       speed: PED_SPEED,
       phase: this.rng.range(0, Math.PI * 2),
       lateral: this.rng.range(-0.2, 0.2),
+      ox: 0,
+      oz: 0,
       x: spot.x,
       z: spot.z,
       y: SIDEWALK_Y,
+      vy: SIDEWALK_Y,
       yaw: Math.PI,
+      px: spot.x,
+      pz: spot.z,
+      py: SIDEWALK_Y,
+      pyaw: Math.PI,
       boardFrom: null,
       dead: false,
     };
     this.peds.push(ped);
     this.scene.add(ped.rig.group);
+  }
+
+  private placeOnPath(ped: Ped, edge: WalkEdge): void {
+    const p = this.sample(ped, edge);
+    const dx = p.dx * ped.dir;
+    const dz = p.dz * ped.dir;
+    ped.ox = -dz * ped.lateral;
+    ped.oz = dx * ped.lateral;
+    ped.x = p.x + ped.ox;
+    ped.z = p.z + ped.oz;
+    ped.yaw = Math.atan2(dx, dz);
+    ped.vy = ped.y;
   }
 
   private sample(ped: Ped, edge: WalkEdge): { x: number; z: number; dx: number; dz: number } {
@@ -171,6 +223,7 @@ export class PeopleSystem {
       if (ped.state === 'idle' || ped.state === 'wait') {
         ped.state = 'board';
         ped.boardFrom = { x: ped.x, z: ped.z };
+        ped.s = 0;
       }
       boarded++;
     }
@@ -215,6 +268,10 @@ export class PeopleSystem {
   }
 
   private updatePed(ped: Ped, dt: number): void {
+    ped.px = ped.x;
+    ped.pz = ped.z;
+    ped.py = ped.vy;
+    ped.pyaw = ped.yaw;
     const pose = { x: ped.x, z: ped.z, dx: 0, dz: 1 };
     let moving = false;
     let yTarget = SIDEWALK_Y;
@@ -245,8 +302,13 @@ export class PeopleSystem {
         pose.dx = p.dx * ped.dir;
         pose.dz = p.dz * ped.dir;
         if (ped.s >= edge.length) {
+          const overshoot = ped.s - edge.length;
           const nodeId = ped.dir === 1 ? edge.b : edge.a;
           this.pickNext(ped, nodeId, edge.id);
+          if (ped.state === 'walk' || ped.state === 'cross') {
+            const next = this.graph.edges.get(ped.edgeId);
+            ped.s = next ? Math.min(overshoot, next.length) : 0;
+          }
         }
         break;
       }
@@ -298,13 +360,39 @@ export class PeopleSystem {
     }
 
     if (ped.state !== 'idle') {
-      ped.x = pose.x - pose.dz * ped.lateral;
-      ped.z = pose.z + pose.dx * ped.lateral;
+      const ease = Math.min(1, dt * 8);
+      ped.ox += (-pose.dz * ped.lateral - ped.ox) * ease;
+      ped.oz += (pose.dx * ped.lateral - ped.oz) * ease;
+      ped.x = pose.x + ped.ox;
+      ped.z = pose.z + ped.oz;
     }
     ped.y += (yTarget - ped.y) * Math.min(1, dt * 8);
 
     const bob = animateRig(ped.rig, ped.phase, moving);
-    ped.rig.group.position.set(ped.x, ped.y + bob, ped.z);
+    ped.vy = ped.y + bob;
+    ped.rig.group.position.set(ped.x, ped.vy, ped.z);
     ped.rig.group.rotation.y = ped.yaw;
+  }
+
+  pedStates(): PedState[] {
+    const out: PedState[] = [];
+    for (const ped of this.peds) {
+      if (ped.dead) continue;
+      out.push({ id: ped.id, edgeId: ped.edgeId, s: ped.s, state: ped.state, x: ped.x, z: ped.z });
+    }
+    return out;
+  }
+
+  render(alpha: number): void {
+    const t = clamp01(alpha);
+    for (const ped of this.peds) {
+      if (ped.dead) continue;
+      ped.rig.group.position.set(
+        lerpScalar(ped.px, ped.x, t),
+        lerpScalar(ped.py, ped.vy, t),
+        lerpScalar(ped.pz, ped.z, t),
+      );
+      ped.rig.group.rotation.y = lerpAngle(ped.pyaw, ped.yaw, t);
+    }
   }
 }

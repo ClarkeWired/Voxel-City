@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Axis, Pt } from '../core/geo';
-import { samplePolyline } from '../core/geo';
+import { clamp01, lerpAngle, lerpScalar, samplePolyline } from '../core/geo';
 import type { Rng } from '../core/rng';
 import { palette } from '../core/palette';
 import { blockCenter, GRID_N } from '../city/grid';
@@ -31,6 +31,21 @@ const CAR_LENGTH = 4.4;
 const ARRIVAL_HOLD_SECONDS = 1.6;
 const EMPTY_EDGES: ReadonlySet<string> = new Set();
 
+interface PoseState {
+  x: number;
+  z: number;
+  yaw: number;
+  px: number;
+  pz: number;
+  pyaw: number;
+}
+
+export interface VisualPose {
+  x: number;
+  z: number;
+  yaw: number;
+}
+
 export interface TrafficOptions {
   closedEdges?: () => ReadonlySet<string>;
   initialCars?: number;
@@ -53,7 +68,7 @@ export class TrafficSystem implements AgentWorld {
   private readonly views = new Map<number, VehicleView>();
   private readonly edgeAgents = new Map<string, VehicleAgent[]>();
   private readonly occupancy = new Map<string, number>();
-  private readonly positions = new Map<number, { x: number; z: number; yaw: number }>();
+  private readonly positions = new Map<number, PoseState>();
   private readonly destinations = new Map<number, string>();
   private readonly arrivalTimes = new Map<number, number>();
   private readonly emergencyLights = new Map<number, THREE.Mesh>();
@@ -262,9 +277,9 @@ export class TrafficSystem implements AgentWorld {
   private addAgent(agent: VehicleAgent, kind: VehicleKind, color: number, emergency = false): void {
     this.agents.push(agent);
     const view = new VehicleView(kind, color, this.bodyMaterial, this.wheelMaterial, emergency);
-    view.update(0, 0, 0, 0, 0);
     this.scene.add(view.group);
     this.views.set(agent.id, view);
+    this.publishPose(agent, 0);
   }
 
   private removeAgent(agent: VehicleAgent): void {
@@ -289,8 +304,8 @@ export class TrafficSystem implements AgentWorld {
 
   update(dt: number): void {
     this.signals.update(dt);
-    this.updateLamps();
     this.refreshPreemption();
+    this.updateLamps();
 
     const conditions = this.conditions();
     for (const agent of this.agents) agent.setConditions(conditions);
@@ -320,23 +335,11 @@ export class TrafficSystem implements AgentWorld {
       }
     }
 
-    this.edgeAgents.clear();
-    this.occupancy.clear();
-    for (const agent of this.agents) {
-      const edge = this.graph.edges.get(agent.edgeId)!;
-      let list = this.edgeAgents.get(edge.id);
-      if (!list) {
-        list = [];
-        this.edgeAgents.set(edge.id, list);
-      }
-      list.push(agent);
-      if (edge.kind === 'turn' && edge.intersectionId !== undefined) {
-        this.occupancy.set(edge.intersectionId, (this.occupancy.get(edge.intersectionId) ?? 0) + 1);
-      }
-    }
+    this.groupAgents();
 
+    for (const agent of this.agents) agent.decide(dt, this);
     for (const agent of this.agents) {
-      agent.update(dt, this);
+      agent.commit(dt, this);
       const stop = agent.consumeStopEvent();
       if (stop && agent === this.busAgent) this.events.push({ type: 'bus-arrived' });
       if (agent.arrived && !this.arrivalTimes.has(agent.id)) {
@@ -373,22 +376,7 @@ export class TrafficSystem implements AgentWorld {
       this.respawnTimer = this.rng.range(1.5, 4);
     }
 
-    for (const agent of this.agents) {
-      const edge = this.graph.edges.get(agent.edgeId)!;
-      const pose = samplePolyline(edge.points, agent.s);
-      const prev = this.positions.get(agent.id);
-      const targetYaw = Math.atan2(-pose.dz, pose.dx);
-      let yaw = targetYaw;
-      if (prev) {
-        let delta = targetYaw - prev.yaw;
-        while (delta > Math.PI) delta -= Math.PI * 2;
-        while (delta < -Math.PI) delta += Math.PI * 2;
-        yaw = prev.yaw + delta * Math.min(1, dt * 9);
-      }
-      this.positions.set(agent.id, { x: pose.x, z: pose.z, yaw });
-      const view = this.views.get(agent.id);
-      if (view) view.update(pose.x, pose.z, yaw, agent.v, dt);
-    }
+    for (const agent of this.agents) this.publishPose(agent, dt);
 
     if (this.emergencyLights.size > 0) {
       const on = Math.floor(this.signals.time * 2.5) % 2 === 0;
@@ -397,6 +385,7 @@ export class TrafficSystem implements AgentWorld {
       }
     }
 
+    this.groupAgents();
     const tracked = this.congestion.entries;
     for (const [edgeId, list] of this.edgeAgents) {
       let sum = 0;
@@ -410,6 +399,71 @@ export class TrafficSystem implements AgentWorld {
     }
   }
 
+  private groupAgents(): void {
+    this.edgeAgents.clear();
+    this.occupancy.clear();
+    for (const agent of this.agents) {
+      const edge = this.graph.edges.get(agent.edgeId)!;
+      let list = this.edgeAgents.get(edge.id);
+      if (!list) {
+        list = [];
+        this.edgeAgents.set(edge.id, list);
+      }
+      list.push(agent);
+      if (edge.kind === 'turn' && edge.intersectionId !== undefined) {
+        this.occupancy.set(edge.intersectionId, (this.occupancy.get(edge.intersectionId) ?? 0) + 1);
+      }
+    }
+  }
+
+  private publishPose(agent: VehicleAgent, dt: number): void {
+    const edge = this.graph.edges.get(agent.edgeId);
+    if (!edge) return;
+    const pose = samplePolyline(edge.points, agent.s);
+    const yaw = Math.atan2(-pose.dz, pose.dx);
+    const state = this.positions.get(agent.id);
+    if (state) {
+      state.px = state.x;
+      state.pz = state.z;
+      state.pyaw = state.yaw;
+      state.x = pose.x;
+      state.z = pose.z;
+      state.yaw = yaw;
+    } else {
+      this.positions.set(agent.id, { x: pose.x, z: pose.z, yaw, px: pose.x, pz: pose.z, pyaw: yaw });
+    }
+    const view = this.views.get(agent.id);
+    if (view) {
+      view.pose(pose.x, pose.z, yaw);
+      if (dt > 0) view.advance(dt, agent.v);
+    }
+  }
+
+  visualPose(agentId: number, alpha: number): VisualPose | null {
+    const state = this.positions.get(agentId);
+    if (!state) return null;
+    const t = clamp01(alpha);
+    return {
+      x: lerpScalar(state.px, state.x, t),
+      z: lerpScalar(state.pz, state.z, t),
+      yaw: lerpAngle(state.pyaw, state.yaw, t),
+    };
+  }
+
+  render(alpha: number): void {
+    const t = clamp01(alpha);
+    for (const agent of this.agents) {
+      const state = this.positions.get(agent.id);
+      const view = this.views.get(agent.id);
+      if (!state || !view) continue;
+      view.pose(
+        lerpScalar(state.px, state.x, t),
+        lerpScalar(state.pz, state.z, t),
+        lerpAngle(state.pyaw, state.yaw, t),
+      );
+    }
+  }
+
   consumeEvents(): TrafficEvent[] {
     if (this.events.length === 0) return [];
     const out = this.events.slice();
@@ -418,15 +472,13 @@ export class TrafficSystem implements AgentWorld {
   }
 
   private updateLamps(force = false): void {
-    const ns = this.signals.state('NS');
-    const ew = this.signals.state('EW');
-    const key = `${ns}:${ew}`;
+    const states = this.heads.map((head) => this.signal(head.axis, head.intersectionId));
+    const key = states.join('|');
     if (!force && key === this.lastLampKey) return;
     this.lastLampKey = key;
     const color = new THREE.Color();
     let index = 0;
-    for (const head of this.heads) {
-      const state = head.axis === 'NS' ? ns : ew;
+    for (const state of states) {
       color.setHex(state === 'red' ? palette.lightRedOn : palette.lightRedOff);
       this.lampMesh.setColorAt(index++, color);
       color.setHex(state === 'yellow' ? palette.lightYellowOn : palette.lightYellowOff);

@@ -6,6 +6,7 @@ import { palette } from './core/palette';
 import { buildCity } from './city/index';
 import { blockCenter } from './city/grid';
 import { RainVisuals } from './city/rain';
+import { FIXED_STEP, FixedStepAccumulator, MAX_FRAME_SECONDS } from './core/loop';
 import { buildLaneGraph, busLoopEdgeIds } from './traffic/graph';
 import { TrafficSystem } from './traffic/index';
 import { BarrierVisuals } from './traffic/barriers';
@@ -297,11 +298,9 @@ function saveWorld(): void {
 let lastStatsUpdate = 0;
 let sinceAutosave = 0;
 const realClock = new THREE.Clock();
+const stepper = new FixedStepAccumulator();
 
-function frame(): void {
-  const dt = Math.min(realClock.getDelta(), 0.05);
-  const elapsed = realClock.elapsedTime;
-
+function simulate(dt: number): void {
   simClock.step(dt);
   sinceAutosave += dt;
   if (sinceAutosave >= AUTOSAVE_SECONDS) {
@@ -325,11 +324,6 @@ function frame(): void {
   incidentVisuals.update(scene, graph, incidents.list);
 
   weather.update(at);
-  const conditions = conditionsFor(weather.current);
-  sceneFog.near = 60 + 90 * conditions.visibility;
-  sceneFog.far = 140 + 200 * conditions.visibility;
-  applyEnvironment(1 - conditions.visibility);
-  rain.update(weather.current, { x: controls.target.x, z: controls.target.z }, dt);
   traffic.update(dt);
   for (const event of traffic.consumeEvents()) {
     people.handleEvent(event);
@@ -341,12 +335,30 @@ function frame(): void {
     if (agentId !== null) citizens.assignAgent(demand.citizenId, agentId);
     else citizens.deferTrip(demand.citizenId, at);
   }
+}
+
+function frame(): void {
+  const rawDt = realClock.getDelta();
+  const frameSeconds = Math.min(Math.max(rawDt, 0), MAX_FRAME_SECONDS);
+  const elapsed = realClock.elapsedTime;
+
+  const plan = stepper.advance(rawDt);
+  for (let step = 0; step < plan.steps; step++) simulate(FIXED_STEP);
+
+  const at = simClock.worldMinutes;
+  const conditions = conditionsFor(weather.current);
+  sceneFog.near = 60 + 90 * conditions.visibility;
+  sceneFog.far = 140 + 200 * conditions.visibility;
+  applyEnvironment(1 - conditions.visibility);
+  rain.update(weather.current, { x: controls.target.x, z: controls.target.z }, frameSeconds);
+  traffic.render(plan.alpha);
+  people.render(plan.alpha);
   controls.update();
   renderer.render(scene, camera);
 
   if (elapsed - lastStatsUpdate > 0.5) {
     lastStatsUpdate = elapsed;
-    const fps = Math.round(1 / Math.max(dt, 0.0001));
+    const fps = Math.round(1 / Math.max(frameSeconds, 0.0001));
     const closureCount = world.closures.filter(
       (closure) => at >= closure.startMinutes && at < closure.endMinutes,
     ).length;

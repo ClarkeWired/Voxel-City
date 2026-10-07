@@ -152,9 +152,12 @@ export class VehicleView {
     return createVoxelMaterial();
   }
 
-  update(x: number, z: number, yaw: number, speed: number, dt: number): void {
+  pose(x: number, z: number, yaw: number): void {
     this.group.position.set(x, 0, z);
     this.group.rotation.y = yaw;
+  }
+
+  advance(dt: number, speed: number): void {
     this.spin -= (speed * dt) / this.radius;
     this.wheelL.rotation.z = this.spin;
     this.wheelR.rotation.z = this.spin;
