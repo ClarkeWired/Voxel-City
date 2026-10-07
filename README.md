@@ -29,8 +29,9 @@ npm run preview    # serve the production build
 
 ## Living world
 
-- A **simulation clock** drives a day/night cycle; sun, sky and fog follow it. The world autosaves to `localStorage` (and on unload) and restores the clock on the next visit, so the city continues where it left off.
+- A **simulation clock** drives a day/night cycle; sun, sky and fog follow it. The world autosaves to `localStorage` (and on unload) and restores the clock, closures and citizens on the next visit, so the city continues where it left off.
 - Cars drive real **origin→destination routes** planned over the lane graph. Closing a road (press **C**) raises barriers, invalidates affected routes and cars reroute from where they are; **X** reopens everything. Closures live in world state with start/end times and are saved with the city.
+- **60 citizens** have homes, workplaces and routines: they commute out around 08:00, return (some via a shop) around 17:00 and drive home. Rush hours emerge from those schedules — there is no random traffic spawner. The HUD shows how many commuters are on the road.
 
 ## What is simulated
 

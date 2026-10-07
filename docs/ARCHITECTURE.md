@@ -27,9 +27,10 @@
 ## World state & time (`src/world/`)
 
 - `clock.ts`: `SimulationClock` (minutes in the day, day counter, speed multiplier; speeds 0/1/4/16x, 1x = 1 simulated minute per real second). Pure helpers `daylightFactor`, `horizonWarmth` and `sunArc` define the sun curve (sunrise 06:00, sunset 20:00) and are unit-tested independently of rendering.
-- `state.ts`: versioned `WorldState` (clock + RNG snapshot) with validated JSON `serializeWorld`/`deserializeWorld`. The app autosaves to `localStorage` every 10 s and on unload; corrupt or outdated saves are discarded and a fresh 08:00 world starts. Full entity persistence will extend this schema.
+- `citizens.ts`: `CitizenSystem` gives the city reasons for journeys. Each citizen has a home/work/shop block and daily schedule (work start ≈ 08:00 ± 50 min, work end ≈ 17:00 ± 50 min, ~45 % make a post-work shop trip). It emits `TravelDemand` requests when activities come due, tracks the assigned vehicle agent, and reschedules on arrival (`home → work → shop → home`, then the next morning). Active trips are capped; failed requests defer a few minutes. Morning and evening peaks therefore emerge from schedules rather than spawning rules. Fully JSON-serialisable.
+- `state.ts`: versioned `WorldState` (clock + RNG snapshot + closures + citizens) with validated JSON `serializeWorld`/`deserializeWorld`; v1/v2 saves migrate to v3. The app autosaves to `localStorage` every 10 s and on unload; corrupt or outdated saves are discarded and a fresh 08:00 world starts.
 - Rendering observes the clock: sun position/intensity/colour, sky, fog and hemisphere light all follow the daylight curve. `?minutes=MMM` overrides the start time (demo/screenshot helper).
-- `Rng.snapshot()/restore()` make the seeded stream resumable for future full-world saves.
+- `Rng.snapshot()/restore()` make the seeded stream resumable for full-world saves.
 
 ## Traffic (`src/traffic/`)
 
@@ -45,11 +46,12 @@
 - `signals.ts`: pure global cycle, 11 s per axis (8 green, 2 yellow, 1 all-red), period 22 s. `signalState(axis, t)` and `timeUntilGreen(axis, t)` are pure functions; `SignalController` wraps them with an offset.
 - `agent.ts`: IDM (Intelligent Driver Model) longitudinal control with virtual leaders for stop lines. State machine: approach → stop/yield check → commit turn → next edge. `AgentWorld` is an interface so tests can stub the world. Buses carry `stops`; passing a stop sets dwell, emits an event, and resets the stop when re-entering its edge next lap.
 - `index.ts` (`TrafficSystem`): owns agents/views, builds per-edge occupancy lists each frame, implements `AgentWorld`:
-  - Cars spawn with a real origin→destination route to a block-centroid anchor; buses follow their fixed loop (`routeLoop: true`). Non-looping routes end in `arrived`, after which the vehicle is held briefly and retired; a replacement spawns after a short delay.
+  - Cars spawn with a real origin→destination route to a block-centroid anchor; buses follow their fixed loop (`routeLoop: true`). Non-looping routes end in `arrived`, after which the vehicle is held briefly and retired; a replacement spawns after a short delay (for the baseline fleet).
+  - `requestTrip(fromBlock, toBlock)` spawns a car on a road edge near the origin block with a route to the destination anchor — this is how the `CitizenSystem` puts traffic on the roads. The fleet is capped (`maxCars`); baseline demo traffic can be disabled with `initialCars: 0`.
   - Every frame, any car whose remaining route intersects an active closure is rerouted from its current edge; `canEnter` refuses closed edges as the safety net (vehicles wait rather than enter).
   - `leaderInfo`: nearest same-edge leader plus first vehicle on the next edge (queue spillback protection).
   - `canEnter`: blocks entering an occupied intersection; left turns also yield to oncoming traffic (with an id tie-break so two opposing left-turners cannot deadlock).
-  - emits `bus-arrived` / `bus-departed` / `vehicle-arrived` events.
+  - emits `bus-arrived` / `bus-departed` / `vehicle-arrived` events. `main.ts` is the single consumer and forwards each event to the people system and the citizen system.
 - `views.ts`: vehicle voxel models (bus, sedan, van) + wheel rigs; body geometries are cached per kind/color.
 - Spawning is deterministic from the shared `Rng`; a 14-unit spacing check prevents overlaps.
 
@@ -75,7 +77,8 @@ Pure modules are covered by vitest:
 - `agent.test.ts` — stops at red, crosses on green, yields on yellow when able, car-following gap, queue spacing, bus dwell.
 - `routing.test.ts` — contiguous routes, trivial same-node routes, closure avoidance with a different path, unreachable destinations, remaining-path scanning.
 - `closures.test.ts` — closure windows, day-spanning closures, active-edge collection.
-- `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; every car has an origin→destination route; cars retire on arrival; closures trigger rerouting; all views get positioned; signal lamps reflect the phase.
+- `citizens.test.ts` — morning departures, trip caps, home→work→shop→home lifecycle, morning rush vs midday demand, full-day accounting, deferral, JSON round-trip.
+- `system.test.ts` — TrafficSystem integration: bus spawns on its loop, parks at the shelter stop, departs; every car has an origin→destination route; cars retire on arrival; closures trigger rerouting; trip requests spawn near the origin block within the fleet cap; all views get positioned; signal lamps reflect the phase.
 - `paths.test.ts` — walk graph connectivity, crossing geometry, crossing safety predicate.
 - `rng.test.ts` / `voxel.test.ts` / `font.test.ts` — determinism, mesh sizes, mirrored text.
 - `clock.test.ts` / `state.test.ts` — time advancement/rollover/speeds, daylight curve, save/load round-trip and rejection of corrupt payloads.

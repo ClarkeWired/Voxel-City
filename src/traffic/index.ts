@@ -24,9 +24,16 @@ export type TrafficEvent =
   | { type: 'vehicle-arrived'; agentId: number; destNodeId: string };
 
 const CAR_COUNT = 12;
+const MAX_CARS = 26;
 const CAR_LENGTH = 4.4;
 const ARRIVAL_HOLD_SECONDS = 1.6;
 const EMPTY_EDGES: ReadonlySet<string> = new Set();
+
+export interface TrafficOptions {
+  closedEdges?: () => ReadonlySet<string>;
+  initialCars?: number;
+  maxCars?: number;
+}
 
 export class TrafficSystem implements AgentWorld {
   readonly agents: VehicleAgent[] = [];
@@ -45,9 +52,12 @@ export class TrafficSystem implements AgentWorld {
   private readonly destinations = new Map<number, string>();
   private readonly arrivalTimes = new Map<number, number>();
   private readonly anchors: string[];
+  private readonly spawnEdges: LaneEdge[][];
   private readonly events: TrafficEvent[] = [];
   private readonly busAgent: VehicleAgent;
   private readonly closedEdges: () => ReadonlySet<string>;
+  private readonly baselineCars: number;
+  private readonly maxCars: number;
   private lastLampKey = '';
   private busPrevDwell = 0;
   private nextId = 1;
@@ -60,12 +70,14 @@ export class TrafficSystem implements AgentWorld {
     rng: Rng,
     shelter: ShelterBuild,
     signalHeads: SignalHead[],
-    closedEdges?: () => ReadonlySet<string>,
+    options: TrafficOptions = {},
   ) {
     this.graph = graph;
     this.rng = rng;
     this.scene = scene;
-    this.closedEdges = closedEdges ?? (() => EMPTY_EDGES);
+    this.closedEdges = options.closedEdges ?? (() => EMPTY_EDGES);
+    this.baselineCars = options.initialCars ?? CAR_COUNT;
+    this.maxCars = options.maxCars ?? MAX_CARS;
     this.bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.wheelMaterial = new THREE.MeshLambertMaterial({ color: palette.carTire });
 
@@ -76,6 +88,23 @@ export class TrafficSystem implements AgentWorld {
       }
     }
     this.anchors = anchors;
+
+    const roadEdges = [...graph.edges.values()].filter((e) => e.kind === 'road');
+    this.spawnEdges = [];
+    for (let b = 0; b < GRID_N * GRID_N; b++) {
+      const bx = blockCenter(Math.floor(b / GRID_N));
+      const bz = blockCenter(b % GRID_N);
+      const sorted = roadEdges
+        .map((edge) => {
+          const last = edge.points[edge.points.length - 1]!;
+          const midX = (edge.points[0]!.x + last.x) / 2;
+          const midZ = (edge.points[0]!.z + last.z) / 2;
+          return { edge, d: (midX - bx) ** 2 + (midZ - bz) ** 2 };
+        })
+        .sort((a, z) => a.d - z.d)
+        .map((entry) => entry.edge);
+      this.spawnEdges.push(sorted);
+    }
 
     this.heads = signalHeads;
     this.lampMesh = new THREE.InstancedMesh(
@@ -117,25 +146,20 @@ export class TrafficSystem implements AgentWorld {
 
     let spawned = 0;
     let attempts = 0;
-    while (spawned < CAR_COUNT && attempts < 400) {
+    while (spawned < this.baselineCars && attempts < 400) {
       attempts++;
-      if (!this.spawnCar()) continue;
+      if (!this.spawnBaselineCar()) continue;
       spawned++;
     }
   }
 
-  private spawnCar(): boolean {
+  private trySpawn(edge: LaneEdge, dest: string): VehicleAgent | null {
     const closed = this.closedEdges();
-    const roadEdges = [...this.graph.edges.values()].filter((e) => e.kind === 'road' && !closed.has(e.id));
-    if (roadEdges.length === 0) return false;
-    const edge = roadEdges[Math.floor(this.rng.next() * roadEdges.length)]!;
+    if (closed.has(edge.id)) return null;
     const s = this.rng.range(4, Math.max(5, edge.length - 4));
-    const spacing = this.agents.filter((a) => a.edgeId === edge.id && Math.abs(a.s - s) < 14);
-    if (spacing.length > 0) return false;
-    const dest = this.anchors[Math.floor(this.rng.next() * this.anchors.length)]!;
-    if (dest === edge.to) return false;
+    if (this.agents.some((a) => a.edgeId === edge.id && Math.abs(a.s - s) < 14)) return null;
     const route = findRoute(this.graph, edge.id, dest, closed);
-    if (!route || route.length < 2) return false;
+    if (!route || route.length < 2) return null;
     const kind: VehicleKind = this.rng.chance(0.3) ? 'van' : 'sedan';
     const agent = new VehicleAgent({
       id: this.nextId++,
@@ -149,7 +173,33 @@ export class TrafficSystem implements AgentWorld {
     });
     this.destinations.set(agent.id, dest);
     this.addAgent(agent, kind, CAR_COLORS[this.rng.int(0, CAR_COLORS.length - 1)]!);
-    return true;
+    return agent;
+  }
+
+  private spawnBaselineCar(): boolean {
+    const closed = this.closedEdges();
+    const roadEdges = [...this.graph.edges.values()].filter((e) => e.kind === 'road' && !closed.has(e.id));
+    if (roadEdges.length === 0) return false;
+    const edge = roadEdges[Math.floor(this.rng.next() * roadEdges.length)]!;
+    const dest = this.anchors[Math.floor(this.rng.next() * this.anchors.length)]!;
+    if (dest === edge.to) return false;
+    return this.trySpawn(edge, dest) !== null;
+  }
+
+  requestTrip(fromBlock: number, toBlock: number): number | null {
+    if (this.carCount >= this.maxCars) return null;
+    const dest = this.anchors[toBlock];
+    if (!dest) return null;
+    const candidates = this.spawnEdges[fromBlock];
+    if (!candidates || candidates.length === 0) return null;
+    const top = candidates.slice(0, 4);
+    const start = Math.floor(this.rng.next() * top.length);
+    for (let i = 0; i < top.length; i++) {
+      const edge = top[(start + i) % top.length]!;
+      const agent = this.trySpawn(edge, dest);
+      if (agent) return agent.id;
+    }
+    return null;
   }
 
   private addAgent(agent: VehicleAgent, kind: VehicleKind, color: number): void {
@@ -240,10 +290,10 @@ export class TrafficSystem implements AgentWorld {
       this.respawnTimer -= dt;
       if (this.respawnTimer <= 0) {
         this.respawnTimer = -1;
-        if (this.agents.length < CAR_COUNT + 1) this.spawnCar();
+        if (this.carCount < this.baselineCars) this.spawnBaselineCar();
       }
     }
-    if (this.respawnTimer < 0 && this.agents.length < CAR_COUNT + 1) {
+    if (this.respawnTimer < 0 && this.carCount < this.baselineCars) {
       this.respawnTimer = this.rng.range(1.5, 4);
     }
 

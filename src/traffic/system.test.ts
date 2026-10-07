@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Rng } from '../core/rng';
+import { blockCenter } from '../city/grid';
 import type { ShelterBuild, SignalHead } from '../city/props';
 import { buildLaneGraph } from './graph';
 import { TrafficSystem } from './index';
@@ -95,7 +96,7 @@ describe('TrafficSystem', () => {
   it('reroutes a car when its next edge is closed', () => {
     const closed = new Set<string>();
     const scene = new THREE.Scene();
-    const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(99), shelter, heads, () => closed);
+    const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(99), shelter, heads, { closedEdges: () => closed });
     for (let i = 0; i < 60 * 20; i++) traffic.update(1 / 60);
     const car = traffic.agents.find(
       (agent) => !agent.routeLoop && !agent.arrived && agent.route !== undefined && agent.route.length - agent.routeIndex > 2,
@@ -107,6 +108,37 @@ describe('TrafficSystem', () => {
     traffic.update(1 / 60);
     expect(traffic.reroutes).toBeGreaterThan(before);
     expect(car!.route!.slice(car!.routeIndex).includes(blocked)).toBe(false);
+  });
+
+  it('services trip requests with a car starting near the origin block', () => {
+    const { traffic } = makeSystem();
+    const graph = buildLaneGraph();
+    const before = traffic.carCount;
+    const agentId = traffic.requestTrip(0, 8);
+    expect(agentId).not.toBeNull();
+    expect(traffic.carCount).toBe(before + 1);
+    const car = traffic.agents.find((agent) => agent.id === agentId)!;
+    expect(car.route).toBeDefined();
+    expect(car.route![0]).toBe(car.edgeId);
+    expect(traffic.destinationOf(car.id)).toBeDefined();
+    const edge = graph.edges.get(car.edgeId)!;
+    const last = edge.points[edge.points.length - 1]!;
+    const midX = (edge.points[0]!.x + last.x) / 2;
+    const midZ = (edge.points[0]!.z + last.z) / 2;
+    const distance = Math.hypot(midX - blockCenter(0), midZ - blockCenter(0));
+    expect(distance).toBeLessThan(45);
+  });
+
+  it('respects the maximum car capacity for trip requests', () => {
+    const scene = new THREE.Scene();
+    const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(7), shelter, heads, { initialCars: 0, maxCars: 3 });
+    let accepted = 0;
+    for (let i = 0; i < 12; i++) {
+      if (traffic.requestTrip(i % 9, (i + 4) % 9) !== null) accepted++;
+    }
+    expect(accepted).toBeGreaterThan(0);
+    expect(accepted).toBeLessThanOrEqual(3);
+    expect(traffic.carCount).toBeLessThanOrEqual(3);
   });
 
   it('renders signal lamps for the current phase', () => {

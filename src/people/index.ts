@@ -3,7 +3,7 @@ import type { Pt } from '../core/geo';
 import { samplePolyline } from '../core/geo';
 import type { Rng } from '../core/rng';
 import type { ShelterBuild } from '../city/props';
-import type { TrafficSystem } from '../traffic/index';
+import type { TrafficEvent, TrafficSystem } from '../traffic/index';
 import { CROSS_SPEED, JOG_SPEED, PED_SPEED, canStartCrossing, type WalkEdge, type WalkGraph } from './paths';
 import { animateRig, createPersonRig, type PersonRig } from './person';
 
@@ -128,12 +128,12 @@ export class PeopleSystem {
     this.scene.remove(ped.rig.group);
   }
 
-  update(dt: number): void {
-    for (const event of this.traffic.consumeEvents()) {
-      if (event.type === 'bus-arrived') this.onBusArrived();
-      if (event.type === 'bus-departed') this.waiterSpawnTimer = this.rng.range(2.5, 7);
-    }
+  handleEvent(event: TrafficEvent): void {
+    if (event.type === 'bus-arrived') this.onBusArrived();
+    if (event.type === 'bus-departed') this.waiterSpawnTimer = this.rng.range(2.5, 7);
+  }
 
+  update(dt: number): void {
     this.walkerSpawnTimer -= dt;
     if (this.walkerSpawnTimer <= 0) {
       this.walkerSpawnTimer = this.rng.range(6, 14);

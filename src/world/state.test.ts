@@ -1,14 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { createWorldState, deserializeWorld, serializeWorld } from './state';
+import type { CitizenState } from './citizens';
+
+const sampleCitizen: CitizenState = {
+  id: 1,
+  homeBlock: 0,
+  workBlock: 4,
+  shopBlock: 2,
+  location: 0,
+  activity: 'home',
+  nextDepart: 480,
+  traveling: false,
+  tripAgentId: -1,
+  targetBlock: 4,
+  workStart: 480,
+  workEnd: 1020,
+  shopDwell: 60,
+};
 
 describe('WorldState persistence', () => {
   it('creates a fresh 08:00 world', () => {
     const world = createWorldState();
-    expect(world.version).toBe(2);
+    expect(world.version).toBe(3);
     expect(world.clock.minutes).toBe(480);
     expect(world.clock.day).toBe(1);
     expect(world.clock.speed).toBe(1);
     expect(world.closures).toEqual([]);
+    expect(world.citizens).toEqual([]);
   });
 
   it('round-trips through JSON without losing fields', () => {
@@ -23,34 +41,47 @@ describe('WorldState persistence', () => {
       startMinutes: 2880,
       endMinutes: 2900,
     });
+    world.citizens.push(sampleCitizen);
     const restored = deserializeWorld(serializeWorld(world));
     expect(restored).toEqual(world);
   });
 
-  it('migrates version 1 saves with empty closures', () => {
+  it('migrates version 1 and 2 saves to version 3', () => {
     const v1 = JSON.stringify({ version: 1, clock: { minutes: 600, day: 2, speed: 1 }, rngState: 7 });
-    const world = deserializeWorld(v1);
-    expect(world.version).toBe(2);
-    expect(world.clock).toEqual({ minutes: 600, day: 2, speed: 1 });
-    expect(world.rngState).toBe(7);
-    expect(world.closures).toEqual([]);
+    const fromV1 = deserializeWorld(v1);
+    expect(fromV1.version).toBe(3);
+    expect(fromV1.clock).toEqual({ minutes: 600, day: 2, speed: 1 });
+    expect(fromV1.closures).toEqual([]);
+    expect(fromV1.citizens).toEqual([]);
+
+    const v2 = JSON.stringify({
+      version: 2,
+      clock: { minutes: 700, day: 1, speed: 1 },
+      rngState: 0,
+      closures: [{ id: 'c', edgeId: 'e', reason: 'x', startMinutes: 0, endMinutes: 10 }],
+    });
+    const fromV2 = deserializeWorld(v2);
+    expect(fromV2.version).toBe(3);
+    expect(fromV2.closures.length).toBe(1);
+    expect(fromV2.citizens).toEqual([]);
   });
 
-  it('drops malformed closure entries', () => {
+  it('drops malformed closure and citizen entries', () => {
     const payload = JSON.stringify({
-      version: 2,
+      version: 3,
       clock: { minutes: 10, day: 1, speed: 1 },
       rngState: 0,
       closures: [
         { id: 'ok', edgeId: 'e', reason: 'x', startMinutes: 0, endMinutes: 10 },
         { id: 'bad', edgeId: 'e' },
         'nonsense',
-        null,
       ],
+      citizens: [sampleCitizen, { id: 'x' }, null, { id: 2 }],
     });
     const world = deserializeWorld(payload);
     expect(world.closures.length).toBe(1);
-    expect(world.closures[0]!.id).toBe('ok');
+    expect(world.citizens.length).toBe(1);
+    expect(world.citizens[0]!.id).toBe(1);
   });
 
   it('rejects malformed payloads', () => {
@@ -73,11 +104,11 @@ describe('WorldState persistence', () => {
 
   it('keeps a valid rng snapshot and defaults invalid ones', () => {
     const good = deserializeWorld(
-      JSON.stringify({ version: 2, clock: { minutes: 10, day: 2, speed: 1 }, rngState: 4294967295 }),
+      JSON.stringify({ version: 3, clock: { minutes: 10, day: 2, speed: 1 }, rngState: 4294967295 }),
     );
     expect(good.rngState).toBe(4294967295);
     const bad = deserializeWorld(
-      JSON.stringify({ version: 2, clock: { minutes: 10, day: 2, speed: 1 }, rngState: -1.5 }),
+      JSON.stringify({ version: 3, clock: { minutes: 10, day: 2, speed: 1 }, rngState: -1.5 }),
     );
     expect(bad.rngState).toBe(0);
   });

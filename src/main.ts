@@ -17,6 +17,7 @@ import {
   sunArc,
 } from './world/clock';
 import { activeClosureEdges, createClosure } from './world/closures';
+import { CitizenSystem } from './world/citizens';
 import { createWorldState, deserializeWorld, serializeWorld, type WorldState } from './world/state';
 
 const SAVE_KEY = 'voxel-city:save';
@@ -125,7 +126,14 @@ const rng = new Rng(20261007);
 const city = buildCity(scene, rng);
 const graph = buildLaneGraph();
 const closureEdgeSet = new Set<string>();
-const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHeads, () => closureEdgeSet);
+const citizens =
+  world.citizens.length > 0
+    ? CitizenSystem.fromJSON(world.citizens, rng)
+    : new CitizenSystem(60, rng, simClock.worldMinutes);
+const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHeads, {
+  closedEdges: () => closureEdgeSet,
+  initialCars: 0,
+});
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
 const barriers = new BarrierVisuals();
@@ -186,6 +194,7 @@ function saveWorld(): void {
   try {
     world.clock = simClock.toJSON();
     world.rngState = rng.snapshot();
+    world.citizens = citizens.toJSON();
     window.localStorage.setItem(SAVE_KEY, serializeWorld(world));
   } catch {
     // storage may be unavailable or full; the simulation keeps running
@@ -219,7 +228,16 @@ function frame(): void {
 
   applyDaylight();
   traffic.update(dt);
+  for (const event of traffic.consumeEvents()) {
+    people.handleEvent(event);
+    if (event.type === 'vehicle-arrived') citizens.handleAgentArrived(event.agentId, at);
+  }
   people.update(dt);
+  for (const demand of citizens.update(at)) {
+    const agentId = traffic.requestTrip(demand.fromBlock, demand.toBlock);
+    if (agentId !== null) citizens.assignAgent(demand.citizenId, agentId);
+    else citizens.deferTrip(demand.citizenId, at);
+  }
   controls.update();
   renderer.render(scene, camera);
 
@@ -228,8 +246,8 @@ function frame(): void {
     const fps = Math.round(1 / Math.max(dt, 0.0001));
     const closureInfo = closureEdgeSet.size > 0 ? ` · ${closureEdgeSet.size} closures` : '';
     stats.textContent =
-      `${traffic.vehicleCount} vehicles · ${people.count} pedestrians · ` +
-      `day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo} · ${fps} fps`;
+      `${traffic.vehicleCount} vehicles · ${citizens.travelingCount} commuters · ` +
+      `${people.count} pedestrians · day ${simClock.day} ${simClock.timeString()} · ${simClock.speed}x${closureInfo} · ${fps} fps`;
   }
   requestAnimationFrame(frame);
 }
