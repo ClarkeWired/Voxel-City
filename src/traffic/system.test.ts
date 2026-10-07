@@ -192,6 +192,18 @@ describe('TrafficSystem', () => {
     expect(traffic.preemptedIntersection('1:1')).toBeUndefined();
   });
 
+  it('applies per-intersection signal offsets when provided', () => {
+    const scene = new THREE.Scene();
+    const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(11), shelter, heads, {
+      initialCars: 0,
+      signalOffsets: (id) => (id === '2:2' ? 6 : 0),
+    });
+    traffic.update(1 / 60);
+    expect(traffic.signal('NS', '1:1')).toBe('green');
+    expect(traffic.signal('NS', '2:2')).toBe('red');
+    expect(traffic.signal('NS')).toBe(traffic.signal('NS', '1:1'));
+  });
+
   it('renders signal lamps for the current phase', () => {
     const { traffic, scene } = makeSystem();
     for (let i = 0; i < 180; i++) traffic.update(1 / 60);

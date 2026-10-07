@@ -53,7 +53,15 @@ export class SignalController {
     return signalState(axis, this.t);
   }
 
+  stateAt(axis: Axis, offsetSeconds: number): LightState {
+    return signalState(axis, this.t - offsetSeconds);
+  }
+
   timeUntilGreen(axis: Axis): number {
     return timeUntilGreen(axis, this.t);
+  }
+
+  timeUntilGreenAt(axis: Axis, offsetSeconds: number): number {
+    return timeUntilGreen(axis, this.t - offsetSeconds);
   }
 }

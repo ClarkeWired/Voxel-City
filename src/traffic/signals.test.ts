@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AXIS_PHASE, CYCLE_LENGTH, PHASE, signalState, timeUntilGreen } from './signals';
+import { AXIS_PHASE, CYCLE_LENGTH, PHASE, SignalController, signalState, timeUntilGreen } from './signals';
 
 describe('signal cycle', () => {
   it('starts with NS green and EW red', () => {
@@ -45,5 +45,13 @@ describe('signal cycle', () => {
       expect(signalState('NS', t)).toBe(signalState('NS', t + CYCLE_LENGTH * 3));
       expect(signalState('EW', t)).toBe(signalState('EW', t + CYCLE_LENGTH * 2));
     }
+  });
+
+  it('shifts phases by a per-intersection offset', () => {
+    const controller = new SignalController(3);
+    expect(controller.stateAt('NS', 5)).toBe(signalState('NS', 3 - 5));
+    expect(controller.stateAt('EW', 5)).toBe(signalState('EW', 3 - 5));
+    expect(controller.stateAt('EW', 14)).toBe(signalState('EW', 3 - 14));
+    expect(controller.timeUntilGreenAt('NS', 5)).toBeCloseTo(timeUntilGreen('NS', 3 - 5));
   });
 });

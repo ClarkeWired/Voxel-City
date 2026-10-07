@@ -37,6 +37,7 @@ export interface TrafficOptions {
   maxCars?: number;
   conditions?: () => DriveConditions | null;
   congestion?: Record<string, number>;
+  signalOffsets?: (intersectionId: string) => number;
 }
 
 export class TrafficSystem implements AgentWorld {
@@ -63,6 +64,7 @@ export class TrafficSystem implements AgentWorld {
   private readonly closedEdges: () => ReadonlySet<string>;
   private readonly conditions: () => DriveConditions | null;
   private readonly congestion: CongestionTracker;
+  private readonly signalOffsets: ((intersectionId: string) => number) | null;
   private readonly lastCongestionReroute = new Map<number, number>();
   private readonly emergencyOverrides = new Map<string, Axis>();
   private readonly baselineCars: number;
@@ -87,6 +89,7 @@ export class TrafficSystem implements AgentWorld {
     this.closedEdges = options.closedEdges ?? (() => EMPTY_EDGES);
     this.conditions = options.conditions ?? (() => null);
     this.congestion = CongestionTracker.fromJSON(options.congestion ?? {});
+    this.signalOffsets = options.signalOffsets ?? null;
     this.baselineCars = options.initialCars ?? CAR_COUNT;
     this.maxCars = options.maxCars ?? MAX_CARS;
     this.bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -475,12 +478,18 @@ export class TrafficSystem implements AgentWorld {
   signal(axis: Axis, intersectionId?: string): LightState {
     const override = intersectionId !== undefined ? this.emergencyOverrides.get(intersectionId) : undefined;
     if (override !== undefined) return axis === override ? 'green' : 'red';
+    if (intersectionId !== undefined && this.signalOffsets) {
+      return this.signals.stateAt(axis, this.signalOffsets(intersectionId));
+    }
     return this.signals.state(axis);
   }
 
   timeUntilGreen(axis: Axis, intersectionId?: string): number {
     const override = intersectionId !== undefined ? this.emergencyOverrides.get(intersectionId) : undefined;
     if (override !== undefined) return axis === override ? 0 : 20;
+    if (intersectionId !== undefined && this.signalOffsets) {
+      return this.signals.timeUntilGreenAt(axis, this.signalOffsets(intersectionId));
+    }
     return this.signals.timeUntilGreen(axis);
   }
 

@@ -152,6 +152,10 @@ const traffic = new TrafficSystem(scene, graph, rng, city.shelter, city.signalHe
   initialCars: 0,
   conditions: () => conditionsFor(weather.current),
   congestion: world.congestion,
+  signalOffsets: (intersectionId) => {
+    const ix = Number.parseInt(intersectionId.split(':')[0] ?? '0', 10);
+    return Number.isFinite(ix) ? ix * 5 : 0;
+  },
 });
 const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
