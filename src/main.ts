@@ -5,6 +5,7 @@ import { Rng } from './core/rng';
 import { palette } from './core/palette';
 import { buildCity } from './city/index';
 import { blockCenter } from './city/grid';
+import { RainVisuals } from './city/rain';
 import { buildLaneGraph, busLoopEdgeIds } from './traffic/graph';
 import { TrafficSystem } from './traffic/index';
 import { BarrierVisuals } from './traffic/barriers';
@@ -156,6 +157,7 @@ const walkGraph = buildWalkGraph();
 const people = new PeopleSystem(scene, walkGraph, traffic, rng, city.shelter);
 const barriers = new BarrierVisuals();
 const incidentVisuals = new IncidentVisuals();
+const rain = new RainVisuals(scene, new Rng(777));
 const incidents = IncidentSystem.fromJSON(world.incidents, rng);
 const busRouteEdges = new Set(busLoopEdgeIds());
 let closureCounter = 0;
@@ -317,6 +319,7 @@ function frame(): void {
   sceneFog.near = 60 + 90 * conditions.visibility;
   sceneFog.far = 140 + 200 * conditions.visibility;
   applyEnvironment(1 - conditions.visibility);
+  rain.update(weather.current, { x: controls.target.x, z: controls.target.z }, dt);
   traffic.update(dt);
   for (const event of traffic.consumeEvents()) {
     people.handleEvent(event);
