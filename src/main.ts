@@ -109,6 +109,8 @@ function applyEnvironment(weatherDim: number): void {
 
   hemi.intensity = (0.16 + 0.85 * daylight) * (1 - 0.35 * weatherDim);
   hemi.color.copy(skyScratch);
+
+  if (city.nightMesh) city.nightMesh.visible = daylight < 0.35;
 }
 
 const controls = new OrbitControls(camera, renderer.domElement);

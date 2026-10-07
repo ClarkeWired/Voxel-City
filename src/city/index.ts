@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import { VoxelBuilder, buildInstancedMesh, createInstancedMaterial } from '../core/voxel';
 import { GRID_N, blockCenter, roadCenter } from './grid';
 import { buildRoads } from './roads';
@@ -66,13 +66,16 @@ function armPlacement(xc: number, zc: number, arm: Arm, i: number, j: number): A
 export interface CityBuild {
   shelter: ShelterBuild;
   signalHeads: SignalHead[];
+  nightMesh: THREE.InstancedMesh | null;
 }
 
 export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
   const builder = new VoxelBuilder();
+  const nightBuilder = new VoxelBuilder();
+  const nightRng = new Rng(0x9e3779b9);
 
   buildRoads(builder, rng);
-  buildBuildings(builder, rng);
+  buildBuildings(builder, rng, nightBuilder, nightRng);
 
   const signalHeads: SignalHead[] = [];
   for (let i = 0; i <= GRID_N; i++) {
@@ -112,6 +115,7 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
           cz + side.tz * lampU - side.nz * 0.9,
           side.nx,
           side.nz,
+          nightBuilder,
         );
         const treeCount = shelterSide ? 0 : rng.int(2, 4);
         for (let t = 0; t < treeCount; t++) {
@@ -154,5 +158,14 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
   mesh.name = 'static-city';
   scene.add(mesh);
 
-  return { shelter, signalHeads };
+  let nightMesh: THREE.InstancedMesh | null = null;
+  if (nightBuilder.count() > 0) {
+    nightMesh = buildInstancedMesh(nightBuilder, new THREE.MeshBasicMaterial());
+    nightMesh.frustumCulled = false;
+    nightMesh.visible = false;
+    nightMesh.name = 'night-city';
+    scene.add(nightMesh);
+  }
+
+  return { shelter, signalHeads, nightMesh };
 }

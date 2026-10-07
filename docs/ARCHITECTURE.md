@@ -20,9 +20,9 @@
 ## Roads & city (`src/city/`)
 
 - `roads.ts`: base slabs, block platforms with curb caps, asphalt wear, manholes, dashed center lines, zebra stripes, stop lines.
-- `buildings.ts`: per block and side, 2 lots per side; central block south side hosts the showcase CAFE (orange) and FLOWERS (mint) shops. The north side of block `(1,2)` — the block between the default camera and the showcase street — is kept open as a plaza so the street, shelter and shops stay visible. Buildings have windows with frames/sills/flower boxes, striped awnings with valance, sign bands with pixel-font text, storefronts, doors, roof slabs, chimneys, AC units. Corner buildings may interpenetrate like terraced real buildings; only outward facades carry detail.
+- `buildings.ts`: per block and side, 2 lots per side; central block south side hosts the showcase CAFE (orange) and FLOWERS (mint) shops. The north side of block `(1,2)` — the block between the default camera and the showcase street — is kept open as a plaza so the street, shelter and shops stay visible. Buildings have windows with frames/sills/flower boxes, striped awnings with valance, sign bands with pixel-font text, storefronts, doors, roof slabs, chimneys, AC units. Corner buildings may interpenetrate like terraced real buildings; only outward facades carry detail. A share of window panes and storefronts also emit unlit glow quads into a separate night layer (chosen by a dedicated RNG so the daytime city layout is unchanged); the renderer shows that layer whenever daylight falls below a threshold, so the city lights up at dusk and goes dark at dawn.
 - `props.ts`: bus shelter, traffic light poles (housings static; lamps are instanced and recolored by the signal controller), street lamps, trees, benches, bins, hydrants, planters.
-- `index.ts`: assembles everything, returns the shelter info and signal-head list for the traffic system.
+- `index.ts`: assembles everything, returns the shelter info, signal-head list and the night-light layer for the traffic/traffic-lights and the renderer.
 
 ## World state & time (`src/world/`)
 

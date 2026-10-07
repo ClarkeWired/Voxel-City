@@ -113,13 +113,23 @@ export function buildTrafficLight(
   };
 }
 
-export function buildStreetLamp(builder: VoxelBuilder, x: number, z: number, armX: number, armZ: number): void {
+export function buildStreetLamp(
+  builder: VoxelBuilder,
+  x: number,
+  z: number,
+  armX: number,
+  armZ: number,
+  night?: VoxelBuilder,
+): void {
   const base = 1.0;
   builder.box(x, base + 0.1, z, 0.45, 0.2, 0.45, palette.poleDark);
   builder.box(x, base + 1.9, z, 0.2, 3.6, 0.2, palette.poleDark);
   builder.box(x + armX * 0.7, base + 3.7, z + armZ * 0.7, Math.abs(armX) > 0 ? 1.5 : 0.16, 0.16, Math.abs(armZ) > 0 ? 1.5 : 0.16, palette.poleDark);
   builder.box(x + armX * 1.45, base + 3.55, z + armZ * 1.45, 0.75, 0.35, 0.75, palette.lampWhite);
   builder.box(x + armX * 1.45, base + 3.8, z + armZ * 1.45, 0.85, 0.2, 0.85, palette.poleDark);
+  if (night) {
+    night.box(x + armX * 1.45, base + 3.5, z + armZ * 1.45, 0.62, 0.3, 0.62, palette.lampWhite);
+  }
 }
 
 export function buildTree(builder: VoxelBuilder, rng: Rng, x: number, z: number): void {

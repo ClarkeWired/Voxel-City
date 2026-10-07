@@ -82,6 +82,8 @@ function buildWindow(
   y: number,
   rng: Rng,
   withFlowers: boolean,
+  night?: VoxelBuilder,
+  nightRng?: Rng,
 ): void {
   boxOn(builder, fx, fz, side, u, 0.12, y + 0.875, 1.95, 0.2, 0.25, palette.frame);
   boxOn(builder, fx, fz, side, u, 0.12, y - 0.875, 1.95, 0.2, 0.25, palette.frame);
@@ -89,6 +91,9 @@ function buildWindow(
   boxOn(builder, fx, fz, side, u + 0.85, 0.12, y, 0.25, 0.2, 2.0, palette.frame);
   boxOn(builder, fx, fz, side, u, 0.0, y, 1.5, 0.2, 1.55, palette.glass);
   boxOn(builder, fx, fz, side, u, 0.22, y - 1.08, 2.3, 0.5, 0.28, palette.frame);
+  if (night && nightRng && nightRng.chance(0.45)) {
+    boxOn(night, fx, fz, side, u, 0.14, y, 1.4, 0.15, 1.45, 0xffd98c);
+  }
   if (withFlowers && rng.chance(0.65)) {
     const count = rng.int(1, 3);
     for (let i = 0; i < count; i++) {
@@ -109,6 +114,8 @@ function windowRow(
   u1: number,
   y: number,
   rng: Rng,
+  night?: VoxelBuilder,
+  nightRng?: Rng,
 ): void {
   const width = u1 - u0;
   const count = Math.max(2, Math.floor((width - 1.2) / 2.6));
@@ -116,7 +123,7 @@ function windowRow(
   const span = width - margin * 2;
   for (let i = 0; i < count; i++) {
     const u = u0 + margin + (count === 1 ? span / 2 : (span * i) / (count - 1));
-    buildWindow(builder, fx, fz, side, u, y, rng, true);
+    buildWindow(builder, fx, fz, side, u, y, rng, true, night, nightRng);
   }
 }
 
@@ -138,6 +145,8 @@ function buildBuilding(
   bz: number,
   side: Side,
   spec: BuildingSpec,
+  night?: VoxelBuilder,
+  nightRng?: Rng,
 ): void {
   const fx = bx + side.nx * FACADE_DIST;
   const fz = bz + side.nz * FACADE_DIST;
@@ -170,6 +179,9 @@ function buildBuilding(
   if (spec.shop) {
     boxOn(builder, fx, fz, side, mid, 0.06, BASE_Y + 1.5, width - 1.4, 0.2, 2.8, palette.glass);
     boxOn(builder, fx, fz, side, mid, 0.16, BASE_Y + 1.4, width - 2.2, 0.24, 2.3, palette.glassLight);
+    if (night && nightRng && nightRng.chance(0.75)) {
+      boxOn(night, fx, fz, side, mid, 0.3, BASE_Y + 1.4, width - 2.4, 0.14, 2.2, 0xffe2a8);
+    }
     const doorU = mid + (rng.chance(0.5) ? -width / 2 + 1.5 : width / 2 - 1.5);
     boxOn(builder, fx, fz, side, doorU, 0.24, BASE_Y + 1.15, 1.2, 0.3, 2.3, palette.doorWood);
 
@@ -198,7 +210,7 @@ function buildBuilding(
 
     const rowStart = BASE_Y + groundH + UPPER_H + 1.9;
     for (let fl = 0; fl < floors - 2; fl++) {
-      windowRow(builder, fx, fz, side, spec.u0, spec.u1, rowStart + fl * UPPER_H, rng);
+      windowRow(builder, fx, fz, side, spec.u0, spec.u1, rowStart + fl * UPPER_H, rng, night, nightRng);
     }
   } else {
     const doorU = mid;
@@ -206,10 +218,10 @@ function buildBuilding(
     boxOn(builder, fx, fz, side, doorU, 0.35, BASE_Y + 2.35, 1.9, 0.9, 0.25, style.wallDark);
     for (let i = 0; i < 2; i++) {
       const u = spec.u0 + 2 + i * (width - 4);
-      buildWindow(builder, fx, fz, side, u, BASE_Y + 1.9, rng, true);
+      buildWindow(builder, fx, fz, side, u, BASE_Y + 1.9, rng, true, night, nightRng);
     }
     for (let fl = 1; fl < floors; fl++) {
-      windowRow(builder, fx, fz, side, spec.u0, spec.u1, BASE_Y + 1.9 + fl * UPPER_H, rng);
+      windowRow(builder, fx, fz, side, spec.u0, spec.u1, BASE_Y + 1.9 + fl * UPPER_H, rng, night, nightRng);
     }
   }
 }
@@ -282,7 +294,12 @@ function randomLots(rng: Rng): BuildingSpec[] {
   ];
 }
 
-export function buildBuildings(builder: VoxelBuilder, rng: Rng): void {
+export function buildBuildings(
+  builder: VoxelBuilder,
+  rng: Rng,
+  night?: VoxelBuilder,
+  nightRng?: Rng,
+): void {
   for (let bi = 0; bi < GRID_N; bi++) {
     for (let bj = 0; bj < GRID_N; bj++) {
       const bx = blockCenter(bi);
@@ -292,7 +309,7 @@ export function buildBuildings(builder: VoxelBuilder, rng: Rng): void {
         const showcase = bi === 1 && bj === 1 ? showcaseLots(side) : null;
         const specs = showcase ?? randomLots(rng);
         for (const spec of specs) {
-          buildBuilding(builder, rng, bx, bz, side, spec);
+          buildBuilding(builder, rng, bx, bz, side, spec, night, nightRng);
         }
       }
     }
