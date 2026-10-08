@@ -1,8 +1,30 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { Rng } from '../core/rng';
+import { GRID_N } from '../city/grid';
+import { FIXED_STEP } from '../core/loop';
+import type { ShelterBuild, SignalHead } from '../city/props';
+import { buildLaneGraph } from '../traffic/graph';
+import { TrafficSystem } from '../traffic/index';
 import { DAY_LENGTH } from './clock';
 import { CitizenSystem, parseCitizenStates, type CitizenState } from './citizens';
 import { createWorldState, deserializeWorld, serializeWorld } from './state';
+
+const BLOCK_COUNT = GRID_N * GRID_N;
+
+const shelter: ShelterBuild = {
+  center: { x: 0, z: -16.9 },
+  waitSpots: [
+    { x: -0.8, z: -16.9 },
+    { x: 0.15, z: -16.9 },
+    { x: 1.1, z: -16.9 },
+  ],
+  doorPoint: { x: 2.0, z: -15.1 },
+};
+
+const heads: SignalHead[] = [
+  { id: 'light:1:1:N', intersectionId: '1:1', axis: 'NS', x: -35.75, y: 3.65, z: -43.15, fx: 0, fz: -1 },
+];
 
 function dueAt(system: CitizenSystem, at: number): number {
   return system.update(at).length;
@@ -28,6 +50,29 @@ describe('CitizenSystem', () => {
     expect(dueAt(system, 8 * 60 - 60)).toBe(0);
   });
 
+  it('assigns homes and workplaces across the full 5x5 grid', () => {
+    const system = new CitizenSystem(400, new Rng(7), 0, { warmStart: false });
+    const homes = new Set(system.toJSON().map((c) => c.homeBlock));
+    const works = new Set(system.toJSON().map((c) => c.workBlock));
+    for (let b = 0; b < BLOCK_COUNT; b++) {
+      expect(homes.has(b)).toBe(true);
+      expect(works.has(b)).toBe(true);
+    }
+  });
+
+  it('keeps every block id within the 5x5 grid', () => {
+    const system = new CitizenSystem(200, new Rng(3), 0, { warmStart: false });
+    for (const citizen of system.toJSON()) {
+      for (const block of [citizen.homeBlock, citizen.workBlock]) {
+        expect(block).toBeGreaterThanOrEqual(0);
+        expect(block).toBeLessThan(BLOCK_COUNT);
+      }
+      if (citizen.shopBlock >= 0) {
+        expect(citizen.shopBlock).toBeLessThan(BLOCK_COUNT);
+      }
+    }
+  });
+
   it('caps active trips', () => {
     const system = new CitizenSystem(60, new Rng(3), 0, { maxActiveTrips: 10 });
     const demands = system.update(9 * 60);
@@ -37,7 +82,7 @@ describe('CitizenSystem', () => {
   it('completes the home -> work -> shop -> home cycle', () => {
     const system = new CitizenSystem(1, new Rng(11), 8 * 60);
     const citizen = system.toJSON()[0]!;
-    citizen.shopBlock = citizen.shopBlock >= 0 ? citizen.shopBlock : (citizen.homeBlock + 1) % 9;
+    citizen.shopBlock = citizen.shopBlock >= 0 ? citizen.shopBlock : (citizen.homeBlock + 1) % BLOCK_COUNT;
     const rebuilt = CitizenSystem.fromJSON([citizen], new Rng(11));
     const demos = rebuilt.update(citizen.nextDepart);
     expect(demos.length).toBe(1);
@@ -142,6 +187,29 @@ describe('CitizenSystem', () => {
     expect(system.travelingCount).toBe(1);
     system.assignAgent(9999, 3);
     expect(system.travelingCount).toBe(1);
+  });
+
+  it('only marks citizens traveling when a real traffic agent is assigned', () => {
+    const scene = new THREE.Scene();
+    const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(1234), shelter, heads, { initialCars: 0 });
+    const citizens = new CitizenSystem(60, new Rng(42), 8 * 60);
+    for (let i = 0; i < 60 * 30; i++) {
+      traffic.update(FIXED_STEP);
+      const at = 8 * 60 + i * FIXED_STEP;
+      for (const demand of citizens.update(at)) {
+        const agentId = traffic.requestTrip(demand.fromBlock, demand.toBlock);
+        if (agentId !== null) citizens.assignAgent(demand.citizenId, agentId);
+        else citizens.deferTrip(demand.citizenId, at);
+      }
+      for (const event of traffic.consumeEvents()) {
+        if (event.type === 'vehicle-arrived') citizens.handleAgentArrived(event.agentId, at);
+      }
+      for (const citizen of citizens.toJSON()) {
+        if (!citizen.traveling) continue;
+        expect(traffic.agents.some((agent) => agent.id === citizen.tripAgentId)).toBe(true);
+      }
+    }
+    expect(citizens.travelingCount).toBeGreaterThan(0);
   });
 });
 

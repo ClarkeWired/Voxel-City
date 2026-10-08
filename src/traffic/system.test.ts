@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Rng } from '../core/rng';
-import { blockCenter } from '../city/grid';
+import { blockCenter, GRID_N } from '../city/grid';
 import type { ShelterBuild, SignalHead } from '../city/props';
 import { buildLaneGraph } from './graph';
 import { TrafficSystem } from './index';
@@ -134,7 +134,7 @@ describe('TrafficSystem', () => {
     const traffic = new TrafficSystem(scene, buildLaneGraph(), new Rng(7), shelter, heads, { initialCars: 0, maxCars: 3 });
     let accepted = 0;
     for (let i = 0; i < 12; i++) {
-      if (traffic.requestTrip(i % 9, (i + 4) % 9) !== null) accepted++;
+      if (traffic.requestTrip(i % (GRID_N * GRID_N), (i + 4) % (GRID_N * GRID_N)) !== null) accepted++;
     }
     expect(accepted).toBeGreaterThan(0);
     expect(accepted).toBeLessThanOrEqual(3);

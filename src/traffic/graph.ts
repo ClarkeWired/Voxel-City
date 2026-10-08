@@ -41,7 +41,7 @@ export interface LaneGraph {
 
 export const ARMS: readonly Arm[] = ['N', 'S', 'E', 'W'];
 
-const ARRIVE_HEADING: Record<Arm, Pt> = {
+export const ARRIVE_HEADING: Record<Arm, Pt> = {
   N: { x: 0, z: 1 },
   S: { x: 0, z: -1 },
   E: { x: -1, z: 0 },
@@ -67,30 +67,20 @@ export function axisOfArm(arm: Arm): Axis {
   return arm === 'N' || arm === 'S' ? 'NS' : 'EW';
 }
 
-function inboundPos(xc: number, zc: number, arm: Arm): Pt {
-  switch (arm) {
-    case 'N':
-      return { x: xc - LANE_OFFSET, z: zc - D };
-    case 'S':
-      return { x: xc + LANE_OFFSET, z: zc + D };
-    case 'E':
-      return { x: xc + D, z: zc + LANE_OFFSET };
-    case 'W':
-      return { x: xc - D, z: zc - LANE_OFFSET };
-  }
+export function leftVector(h: Pt): Pt {
+  return { x: h.z, z: -h.x };
 }
 
-function outboundPos(xc: number, zc: number, arm: Arm): Pt {
-  switch (arm) {
-    case 'N':
-      return { x: xc + LANE_OFFSET, z: zc - D };
-    case 'S':
-      return { x: xc - LANE_OFFSET, z: zc + D };
-    case 'E':
-      return { x: xc + D, z: zc - LANE_OFFSET };
-    case 'W':
-      return { x: xc - D, z: zc + LANE_OFFSET };
-  }
+export function inboundPos(xc: number, zc: number, arm: Arm): Pt {
+  const h = ARRIVE_HEADING[arm];
+  const l = leftVector(h);
+  return { x: xc - h.x * D + l.x * LANE_OFFSET, z: zc - h.z * D + l.z * LANE_OFFSET };
+}
+
+export function outboundPos(xc: number, zc: number, arm: Arm): Pt {
+  const h = ARRIVE_HEADING[arm];
+  const l = leftVector(h);
+  return { x: xc - h.x * D - l.x * LANE_OFFSET, z: zc - h.z * D - l.z * LANE_OFFSET };
 }
 
 export function armConnects(i: number, j: number, arm: Arm): boolean {

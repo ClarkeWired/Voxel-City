@@ -2,7 +2,8 @@ import { drawText } from '../core/font';
 import type { Rng } from '../core/rng';
 import { palette } from '../core/palette';
 import type { VoxelBuilder } from '../core/voxel';
-import { BLOCK, GRID_N, blockCenter } from './grid';
+import { BLOCK, FURNITURE_INNER, GRID_N, blockCenter } from './grid';
+import type { SpatialBlocker } from '../world/obstacles';
 
 interface Side {
   name: 'N' | 'E' | 'S' | 'W';
@@ -145,6 +146,7 @@ function buildBuilding(
   bz: number,
   side: Side,
   spec: BuildingSpec,
+  blockers?: SpatialBlocker,
   night?: VoxelBuilder,
   nightRng?: Rng,
 ): void {
@@ -158,6 +160,21 @@ function buildBuilding(
   const groundH = spec.shop ? SHOP_GROUND_H : UPPER_H;
   const totalH = groundH + (floors - 1) * UPPER_H;
   const topY = BASE_Y + totalH;
+
+  if (blockers) {
+    const m = 0.1;
+    const u0 = Math.max(spec.u0 - m, -FURNITURE_INNER);
+    const u1 = Math.min(spec.u1 + m, FURNITURE_INNER);
+    if (side.name === 'N') {
+      blockers.add(`b${bx}:${bz}:${side.name}`, bx + u0, bx + u1, bz - FACADE_DIST, bz - FACADE_DIST + depth);
+    } else if (side.name === 'S') {
+      blockers.add(`b${bx}:${bz}:${side.name}`, bx + u0, bx + u1, bz + FACADE_DIST - depth, bz + FACADE_DIST);
+    } else if (side.name === 'E') {
+      blockers.add(`b${bx}:${bz}:${side.name}`, bx + FACADE_DIST - depth, bx + FACADE_DIST, bz + u0, bz + u1);
+    } else {
+      blockers.add(`b${bx}:${bz}:${side.name}`, bx - FACADE_DIST, bx - FACADE_DIST + depth, bz + u0, bz + u1);
+    }
+  }
 
   boxOn(builder, fx, fz, side, mid, -depth / 2, BASE_Y + totalH / 2, width, depth, totalH, style.wall);
   boxOn(builder, fx, fz, side, mid, 0.1, BASE_Y + 0.55, width, 0.2, 1.1, style.wallDark);
@@ -297,8 +314,9 @@ function randomLots(rng: Rng): BuildingSpec[] {
 export function buildBuildings(
   builder: VoxelBuilder,
   rng: Rng,
-  night?: VoxelBuilder,
-  nightRng?: Rng,
+  night: VoxelBuilder | undefined,
+  nightRng: Rng | undefined,
+  blockers?: SpatialBlocker,
 ): void {
   for (let bi = 0; bi < GRID_N; bi++) {
     for (let bj = 0; bj < GRID_N; bj++) {
@@ -309,7 +327,7 @@ export function buildBuildings(
         const showcase = bi === 2 && bj === 2 ? showcaseLots(side) : null;
         const specs = showcase ?? randomLots(rng);
         for (const spec of specs) {
-          buildBuilding(builder, rng, bx, bz, side, spec, night, nightRng);
+          buildBuilding(builder, rng, bx, bz, side, spec, blockers, night, nightRng);
         }
       }
     }

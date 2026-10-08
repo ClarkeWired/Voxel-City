@@ -41,13 +41,13 @@ describe('walk graph', () => {
     const crossing = graph.edges.get('x:2:2:N')!;
     expect(crossing.crossing).toBeDefined();
     expect(crossing.crossing!.axis).toBe('NS');
-    expect(crossing.length).toBeCloseTo(10.2, 5);
+    expect(crossing.length).toBeCloseTo(9.3, 5);
     expect(crossing.points[0]!.z).toBeCloseTo(crossing.points[1]!.z, 5);
     expect(crossing.a).toMatch(/:(nw|ne|sw|se)$/);
     expect(crossing.b).toMatch(/:(nw|ne|sw|se)$/);
     const a = graph.nodes.get(crossing.a)!;
     const b = graph.nodes.get(crossing.b)!;
-    expect(Math.abs(a.pos.x - b.pos.x)).toBeCloseTo(10.2, 5);
+    expect(Math.abs(a.pos.x - b.pos.x)).toBeCloseTo(9.3, 5);
   });
 
   it('crossing endpoints sit on block corners', () => {

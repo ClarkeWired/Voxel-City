@@ -1,4 +1,5 @@
 import type { Rng } from '../core/rng';
+import { GRID_N } from '../city/grid';
 import { DAY_LENGTH } from './clock';
 
 export type Activity = 'home' | 'work' | 'shop';
@@ -32,19 +33,35 @@ export interface CitizenConfig {
 
 const DEFAULT_CONFIG: CitizenConfig = { maxActiveTrips: 26, warmStart: true };
 
-const BLOCK_COUNT = 9;
-const WORK_WEIGHTS = [1, 2, 1, 2, 4, 2, 1, 2, 1];
-const HOME_WEIGHTS = [3, 1, 3, 1, 1, 1, 3, 1, 3];
+const BLOCK_COUNT = GRID_N * GRID_N;
 
-function weightedPick(rng: Rng, weights: readonly number[]): number {
+function blockWeight(bi: number, bj: number, kind: 'home' | 'work'): number {
+  const ci = bi - (GRID_N - 1) / 2;
+  const cj = bj - (GRID_N - 1) / 2;
+  const dist = Math.sqrt(ci * ci + cj * cj);
+  if (kind === 'work') {
+    return 1 + Math.round(4 * Math.max(0, 1 - dist / 3));
+  }
+  return 1 + Math.round(2 * Math.min(1, dist / 2.5));
+}
+
+function homeWeight(block: number): number {
+  return blockWeight(Math.floor(block / GRID_N), block % GRID_N, 'home');
+}
+
+function workWeight(block: number): number {
+  return blockWeight(Math.floor(block / GRID_N), block % GRID_N, 'work');
+}
+
+function weightedPick(rng: Rng, weight: (block: number) => number): number {
   let total = 0;
-  for (const weight of weights) total += weight;
+  for (let i = 0; i < BLOCK_COUNT; i++) total += weight(i);
   let roll = rng.next() * total;
-  for (let i = 0; i < weights.length; i++) {
-    roll -= weights[i]!;
+  for (let i = 0; i < BLOCK_COUNT; i++) {
+    roll -= weight(i);
     if (roll <= 0) return i;
   }
-  return weights.length - 1;
+  return BLOCK_COUNT - 1;
 }
 
 function dayStart(at: number): number {
@@ -116,9 +133,9 @@ export class CitizenSystem {
       const base = dayStart(nowAt) + workStart;
       this.citizens.push({
         id: i + 1,
-        homeBlock: weightedPick(rng, HOME_WEIGHTS),
-        workBlock: weightedPick(rng, WORK_WEIGHTS),
-        shopBlock: shopper ? weightedPick(rng, HOME_WEIGHTS) : -1,
+        homeBlock: weightedPick(rng, homeWeight),
+        workBlock: weightedPick(rng, workWeight),
+        shopBlock: shopper ? weightedPick(rng, homeWeight) : -1,
         location: 0,
         activity: 'home',
         nextDepart: base >= nowAt ? base : nowAt + rng.range(0, 10),
@@ -147,9 +164,7 @@ export class CitizenSystem {
       if (!citizen || citizen.traveling) continue;
       const departTime = dayStart(nowAt) + citizen.workStart;
       if (departTime >= nowAt) continue;
-      citizen.traveling = true;
-      citizen.tripAgentId = 100000 + citizen.id;
-      citizen.targetBlock = citizen.workBlock;
+      citizen.nextDepart = nowAt;
     }
   }
 

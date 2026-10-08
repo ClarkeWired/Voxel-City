@@ -27,7 +27,7 @@ describe('barrier placements', () => {
     const zs = [...new Set(placements.map((p) => p.z))].sort((a, b) => a - b);
     expect(zs.length).toBe(2);
     const xs = placements.map((p) => p.x);
-    expect(Math.min(...xs)).toBeCloseTo(-39.25 - 3.9, 5);
-    expect(Math.max(...xs)).toBeCloseTo(-39.25 + 3.9, 5);
+    expect(Math.min(...xs)).toBeCloseTo(-35.75 - 3.9, 5);
+    expect(Math.max(...xs)).toBeCloseTo(-35.75 + 3.9, 5);
   });
 });

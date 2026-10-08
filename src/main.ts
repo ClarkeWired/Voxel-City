@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Rng } from './core/rng';
 import { palette } from './core/palette';
 import { buildCity } from './city/index';
-import { blockCenter } from './city/grid';
+import { nearestBlock } from './city/grid';
 import { RainVisuals } from './city/rain';
 import { FIXED_STEP, FixedStepAccumulator, MAX_FRAME_SECONDS } from './core/loop';
 import { buildLaneGraph, busLoopEdgeIds } from './traffic/graph';
@@ -220,18 +220,7 @@ function respondToIncident(edgeId: string): void {
   const last = edge.points[edge.points.length - 1]!;
   const midX = (edge.points[0]!.x + last.x) / 2;
   const midZ = (edge.points[0]!.z + last.z) / 2;
-  let bestBlock = 0;
-  let bestDistance = -1;
-  for (let b = 0; b < 9; b++) {
-    const bx = blockCenter(Math.floor(b / 3));
-    const bz = blockCenter(b % 3);
-    const d = (bx - midX) ** 2 + (bz - midZ) ** 2;
-    if (d > bestDistance) {
-      bestDistance = d;
-      bestBlock = b;
-    }
-  }
-  traffic.spawnEmergency(bestBlock, edge.from);
+  traffic.spawnEmergency(nearestBlock(midX, midZ), edge.from);
 }
 
 function toggleRandomClosure(preferNear?: { x: number; z: number }): void {

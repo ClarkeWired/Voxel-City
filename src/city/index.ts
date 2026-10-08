@@ -1,7 +1,17 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng';
 import { VoxelBuilder, buildInstancedMesh, createInstancedMaterial } from '../core/voxel';
-import { GRID_N, LANE_OFFSET, ROAD_HALF, blockCenter, roadCenter } from './grid';
+import {
+  BLOCK,
+  CITY_HALF,
+  GRID_N,
+  LANE_OFFSET,
+  PITCH,
+  ROAD,
+  ROAD_HALF,
+  blockCenter,
+  roadCenter,
+} from './grid';
 import { buildRoads } from './roads';
 import { buildBuildings } from './buildings';
 import {
@@ -16,7 +26,7 @@ import {
   type ShelterBuild,
   type SignalHead,
 } from './props';
-import { armConnects, type Arm, ARMS } from '../traffic/graph';
+import { ARRIVE_HEADING, armConnects, leftVector, type Arm, ARMS } from '../traffic/graph';
 import { SpatialBlocker } from '../world/obstacles';
 
 export const SHELTER_X = 0;
@@ -31,37 +41,15 @@ interface ArmPlacement {
   poleZ: number;
 }
 
-function armPlacement(xc: number, zc: number, arm: Arm, _i: number, _j: number): ArmPlacement {
-  switch (arm) {
-    case 'N':
-      return {
-        laneX: xc - LANE_OFFSET,
-        laneZ: zc - STOP_DIST,
-        poleX: xc - ROAD_HALF - 0.5,
-        poleZ: zc - STOP_DIST,
-      };
-    case 'S':
-      return {
-        laneX: xc + LANE_OFFSET,
-        laneZ: zc + STOP_DIST,
-        poleX: xc + ROAD_HALF + 0.5,
-        poleZ: zc + STOP_DIST,
-      };
-    case 'E':
-      return {
-        laneX: xc + STOP_DIST,
-        laneZ: zc + LANE_OFFSET,
-        poleX: xc + STOP_DIST,
-        poleZ: zc + ROAD_HALF + 0.5,
-      };
-    case 'W':
-      return {
-        laneX: xc - STOP_DIST,
-        laneZ: zc - LANE_OFFSET,
-        poleX: xc - STOP_DIST,
-        poleZ: zc - ROAD_HALF - 0.5,
-      };
-  }
+function armPlacement(xc: number, zc: number, arm: Arm): ArmPlacement {
+  const h = ARRIVE_HEADING[arm];
+  const l = leftVector(h);
+  return {
+    laneX: xc + l.x * LANE_OFFSET - h.x * STOP_DIST,
+    laneZ: zc + l.z * LANE_OFFSET - h.z * STOP_DIST,
+    poleX: xc + l.x * (ROAD_HALF + 0.5) - h.x * STOP_DIST,
+    poleZ: zc + l.z * (ROAD_HALF + 0.5) - h.z * STOP_DIST,
+  };
 }
 
 export interface CityBuild {
@@ -78,7 +66,7 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
   const blockers = new SpatialBlocker();
 
   buildRoads(builder, rng);
-  buildBuildings(builder, rng, nightBuilder, nightRng);
+  buildBuildings(builder, rng, nightBuilder, nightRng, blockers);
 
   const signalHeads: SignalHead[] = [];
   for (let i = 0; i <= GRID_N; i++) {
@@ -88,80 +76,90 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
       const intersectionId = `${i}:${j}`;
       for (const arm of ARMS) {
         if (!armConnects(i, j, arm)) continue;
-        const p = armPlacement(xc, zc, arm, i, j);
+        const p = armPlacement(xc, zc, arm);
         signalHeads.push(buildTrafficLight(builder, intersectionId, i, j, arm, p.laneX, p.laneZ, p.poleX, p.poleZ));
+        blockers.addCircle(`light-pole:${intersectionId}:${arm}`, p.poleX, p.poleZ, 0.25);
       }
     }
   }
+
+  const shelterKey = ((): string | null => {
+    const bi = Math.round((SHELTER_X + CITY_HALF - ROAD - BLOCK / 2) / PITCH);
+    const bj = Math.round((SHELTER_Z + CITY_HALF - ROAD - BLOCK / 2) / PITCH);
+    if (bi < 0 || bi >= GRID_N || bj < 0 || bj >= GRID_N) return null;
+    const dx = SHELTER_X - blockCenter(bi);
+    const dz = SHELTER_Z - blockCenter(bj);
+    if (Math.abs(dx) > Math.abs(dz)) return `${bi}:${bj}:${dx > 0 ? 'E' : 'W'}`;
+    return `${bi}:${bj}:${dz > 0 ? 'S' : 'N'}`;
+  })();
+
+  const sides = [
+    { name: 'N', nx: 0, nz: -1, tx: 1, tz: 0 },
+    { name: 'E', nx: 1, nz: 0, tx: 0, tz: -1 },
+    { name: 'S', nx: 0, nz: 1, tx: 1, tz: 0 },
+    { name: 'W', nx: -1, nz: 0, tx: 0, tz: 1 },
+  ];
 
   for (let bi = 0; bi < GRID_N; bi++) {
     for (let bj = 0; bj < GRID_N; bj++) {
       const bx = blockCenter(bi);
       const bz = blockCenter(bj);
-      const edge = 12;
 
-      for (const side of [
-        { nx: 0, nz: -1, tx: 1, tz: 0 },
-        { nx: 1, nz: 0, tx: 0, tz: -1 },
-        { nx: 0, nz: 1, tx: 1, tz: 0 },
-        { nx: -1, nz: 0, tx: 0, tz: 1 },
-      ]) {
-        const cx = bx + side.nx * edge;
-        const cz = bz + side.nz * edge;
-        const shelterSide = bi === 2 && bj === 3 && side.nx === 0 && side.nz === -1;
-        const uAt = (u: number): number =>
-          shelterSide && Math.abs(u - SHELTER_X) < 4 ? SHELTER_X + (u >= SHELTER_X ? 4 : -4) : u;
-        const lampU = uAt(rng.range(-5.5, 5.5));
-        buildStreetLamp(
-          builder,
-          cx + side.tx * lampU - side.nx * 0.7,
-          cz + side.tz * lampU - side.nz * 0.7,
-          side.nx,
-          side.nz,
-          nightBuilder,
-        );
-        const treeCount = shelterSide ? 0 : rng.int(2, 3);
-        for (let t = 0; t < treeCount; t++) {
-          const u = uAt(rng.range(-9, 9));
-          const tx = cx + side.tx * u - side.nx * 2.1;
-          const tz = cz + side.tz * u - side.nz * 2.1;
-          buildTree(builder, rng, tx, tz);
-          blockers.addCircle(`tree:${bi}:${bj}:${t}`, tx, tz, 0.8);
+      for (const side of sides) {
+        const shelterSide = `${bi}:${bj}:${side.name}` === shelterKey;
+        const at = (depth: number, u: number): { x: number; z: number } => ({
+          x: bx + side.nx * depth + side.tx * u,
+          z: bz + side.nz * depth + side.tz * u,
+        });
+
+        const lampU = rng.range(-5.5, 5.5);
+        const lamp = at(8.75, lampU);
+        buildStreetLamp(builder, lamp.x, lamp.z, side.nx, side.nz, nightBuilder);
+        blockers.addCircle(`lamp:${bi}:${bj}`, lamp.x, lamp.z, 0.2);
+
+        if (!shelterSide) {
+          const treeCount = rng.int(2, 3);
+          for (let t = 0; t < treeCount; t++) {
+            const u = rng.range(-6.5, 6.5);
+            const p = at(8.6, u);
+            buildTree(builder, rng, p.x, p.z);
+            blockers.addCircle(`tree:${bi}:${bj}:${t}`, p.x, p.z, 0.35);
+          }
         }
         if (rng.chance(0.7)) {
-          const u = uAt(rng.range(-8, 8));
-          const bx2 = cx + side.tx * u - side.nx * 1.6;
-          const bz2 = cz + side.tz * u - side.nz * 1.6;
-          buildBench(builder, bx2, bz2, Math.abs(side.tx) > 0);
-          blockers.add(`bench:${bi}:${bj}`, bx2 - 1.0, bx2 + 1.0, bz2 - 0.3, bz2 + 0.3);
+          const u = rng.range(-6.5, 6.5);
+          const p = at(8.6, u);
+          buildBench(builder, p.x, p.z, Math.abs(side.tx) > 0);
+          if (Math.abs(side.tx) > 0) {
+            blockers.add(`bench:${bi}:${bj}`, p.x - 1.0, p.x + 1.0, p.z - 0.3, p.z + 0.3);
+          } else {
+            blockers.add(`bench:${bi}:${bj}`, p.x - 0.3, p.x + 0.3, p.z - 1.0, p.z + 1.0);
+          }
         }
         if (rng.chance(0.6)) {
-          const u = uAt(rng.range(-8, 8));
-          const tx = cx + side.tx * u - side.nx * 1.4;
-          const tz = cz + side.tz * u - side.nz * 1.4;
-          buildTrashCan(builder, tx, tz);
-          blockers.addCircle(`bin:${bi}:${bj}`, tx, tz, 0.4);
+          const u = rng.range(-6.5, 6.5);
+          const p = at(8.65, u);
+          buildTrashCan(builder, p.x, p.z);
+          blockers.addCircle(`bin:${bi}:${bj}`, p.x, p.z, 0.35);
         }
         if (rng.chance(0.4)) {
-          const u = uAt(rng.range(-8, 8));
-          const px = cx + side.tx * u - side.nx * 1.8;
-          const pz = cz + side.tz * u - side.nz * 1.8;
-          buildPlanter(builder, rng, px, pz);
-          blockers.add(`planter:${bi}:${bj}`, px - 0.6, px + 0.6, pz - 0.6, pz + 0.6);
+          const u = rng.range(-6.5, 6.5);
+          const p = at(8.6, u);
+          buildPlanter(builder, rng, p.x, p.z);
+          blockers.add(`planter:${bi}:${bj}`, p.x - 0.35, p.x + 0.35, p.z - 0.35, p.z + 0.35);
         }
         if (rng.chance(0.3)) {
-          const u = uAt(rng.range(-8, 8));
-          const hx = cx + side.tx * u - side.nx * 1.2;
-          const hz = cz + side.tz * u - side.nz * 1.2;
-          buildHydrant(builder, hx, hz);
-          blockers.addCircle(`hydrant:${bi}:${bj}`, hx, hz, 0.3);
+          const u = rng.range(-6.5, 6.5);
+          const p = at(8.7, u);
+          buildHydrant(builder, p.x, p.z);
+          blockers.addCircle(`hydrant:${bi}:${bj}`, p.x, p.z, 0.3);
         }
       }
     }
   }
 
-  const shelter = buildShelter(builder, SHELTER_X, SHELTER_Z, true);
-  blockers.add('shelter', SHELTER_X - 2.2, SHELTER_X + 2.2, SHELTER_Z - 1.0, SHELTER_Z + 1.0);
+  const shelter = buildShelter(builder, SHELTER_X, SHELTER_Z, false);
+  blockers.add('shelter', SHELTER_X - 2.2, SHELTER_X + 2.2, SHELTER_Z - 1.0, SHELTER_Z + 0.4);
 
   for (let r = 0; r < 14; r++) {
     const angle = (r / 14) * Math.PI * 2;
@@ -189,3 +187,4 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
 
   return { shelter, signalHeads, nightMesh, blockers };
 }
+

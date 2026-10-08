@@ -51,9 +51,9 @@ export function buildShelter(builder: VoxelBuilder, cx: number, cz: number, face
   builder.box(cx - SHELTER_W / 2 + 0.3, base + 0.28, backZ, 0.12, 0.55, 0.12, palette.poleDark);
 
   const waitSpots: Pt[] = [
-    { x: cx - 0.8, z: cz - zSign * 0.12 },
-    { x: cx + 0.15, z: cz - zSign * 0.12 },
-    { x: cx + 1.1, z: cz - zSign * 0.12 },
+    { x: cx - 0.8, z: cz + zSign * 0.7 },
+    { x: cx + 0.15, z: cz + zSign * 0.7 },
+    { x: cx + 1.1, z: cz + zSign * 0.7 },
   ];
   const doorPoint: Pt = { x: cx + 2.0, z: cz + zSign * 1.8 };
   return { center: { x: cx, z: cz }, waitSpots, doorPoint };
@@ -168,10 +168,10 @@ export function buildBench(builder: VoxelBuilder, x: number, z: number, alongX: 
 
 export function buildPlanter(builder: VoxelBuilder, rng: Rng, x: number, z: number): void {
   const base = 1.0;
-  builder.box(x, base + 0.28, z, 1.05, 0.55, 1.05, palette.planter);
-  builder.box(x, base + 0.58, z, 0.88, 0.1, 0.88, palette.dirt);
+  builder.box(x, base + 0.28, z, 0.7, 0.55, 0.7, palette.planter);
+  builder.box(x, base + 0.58, z, 0.56, 0.1, 0.56, palette.dirt);
   for (let i = 0; i < 3; i++) {
     const fc = [palette.flowerRed, palette.flowerYellow, palette.flowerPink][i % 3]!;
-    builder.box(x + rng.range(-0.28, 0.28), base + 0.72, z + rng.range(-0.28, 0.28), 0.24, 0.24, 0.24, fc);
+    builder.box(x + rng.range(-0.2, 0.2), base + 0.72, z + rng.range(-0.2, 0.2), 0.24, 0.24, 0.24, fc);
   }
 }

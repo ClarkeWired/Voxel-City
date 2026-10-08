@@ -1,6 +1,6 @@
 import type { Axis, Pt } from '../core/geo';
 import { polylineLength } from '../core/geo';
-import { GRID_N, RING_HALF, ROAD_HALF, blockCenter, roadCenter } from '../city/grid';
+import { GRID_N, PITCH, RING_HALF, ROAD_HALF, blockCenter, roadCenter } from '../city/grid';
 import type { LightState } from '../traffic/signals';
 
 export interface CrossingInfo {
@@ -128,7 +128,7 @@ export function buildWalkGraph(): WalkGraph {
       const xc = roadCenter(i);
       const zc = roadCenter(j);
       const intersectionId = `${i}:${j}`;
-      const crossingLen = 2 * RING_HALF + 7;
+      const crossingLen = PITCH - 2 * RING_HALF;
       const duration = crossingLen / CROSS_SPEED;
 
       const tryAdd = (

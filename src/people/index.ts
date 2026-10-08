@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { Pt } from '../core/geo';
+import type { Axis, Pt } from '../core/geo';
 import { clamp01, lerpAngle, lerpScalar, samplePolyline } from '../core/geo';
 import type { Rng } from '../core/rng';
 import type { ShelterBuild } from '../city/props';
@@ -35,7 +35,8 @@ interface Ped {
   pyaw: number;
   boardFrom: Pt | null;
   dead: boolean;
-  crossingKey: string;
+  crossingIntersectionId: string | null;
+  crossingAxis: Axis | null;
 }
 
 export interface PedState {
@@ -83,19 +84,24 @@ export class PeopleSystem {
     return this.peds.filter((p) => !p.dead && p.role === 'waiter').length;
   }
 
-  private spawnWalker(initial = false): void {
-    const nodes = [...this.graph.nodes.values()];
-    const node = nodes[Math.floor(this.rng.next() * nodes.length)]!;
-    const edgeId = node.edges[Math.floor(this.rng.next() * node.edges.length)]!;
-    const edge = this.graph.edges.get(edgeId)!;
-    const dir: 1 | -1 = this.rng.chance(0.5) ? 1 : -1;
-    const s = initial ? this.rng.range(0, edge.length) : 0;
+  private unblockedEdges(nodeId: string): WalkEdge[] {
+    const node = this.graph.nodes.get(nodeId)!;
+    return node.edges
+      .map((id) => this.graph.edges.get(id)!)
+      .filter((edge) => {
+        const a = edge.points[0]!;
+        const b = edge.points[edge.points.length - 1]!;
+        return !this.blockers.intersects(a.x, a.z, b.x, b.z);
+      });
+  }
+
+  private createPed(edge: WalkEdge, dir: 1 | -1, s: number): Ped {
     const ped: Ped = {
       rig: createPersonRig(this.rng),
       id: this.nextPedId++,
       role: 'walker',
       state: edge.crossing ? 'cross' : 'walk',
-      edgeId,
+      edgeId: edge.id,
       dir,
       s,
       nodeId: '',
@@ -117,13 +123,37 @@ export class PeopleSystem {
       pyaw: 0,
       boardFrom: null,
       dead: false,
-      crossingKey: '',
+      crossingIntersectionId: null,
+      crossingAxis: null,
     };
     this.placeOnPath(ped, edge);
     ped.px = ped.x;
     ped.pz = ped.z;
     ped.py = ped.vy;
     ped.pyaw = ped.yaw;
+    return ped;
+  }
+
+  private spawnWalker(initial = false): void {
+    const nodes = [...this.graph.nodes.values()];
+    const candidates: WalkEdge[] = [];
+    for (const node of nodes) {
+      candidates.push(...this.unblockedEdges(node.id));
+    }
+    const edge = candidates.length > 0
+      ? candidates[Math.floor(this.rng.next() * candidates.length)]!
+      : this.graph.edges.get(nodes[0]!.edges[0]!)!;
+    const dir: 1 | -1 = this.rng.chance(0.5) ? 1 : -1;
+    const s = initial ? this.rng.range(0, edge.length) : 0;
+    const ped = this.createPed(edge, dir, s);
+    this.peds.push(ped);
+    this.scene.add(ped.rig.group);
+  }
+
+  spawnPedOnEdge(edgeId: string, s: number, dir: 1 | -1 = 1): void {
+    const edge = this.graph.edges.get(edgeId);
+    if (!edge) return;
+    const ped = this.createPed(edge, dir, s);
     this.peds.push(ped);
     this.scene.add(ped.rig.group);
   }
@@ -158,7 +188,8 @@ export class PeopleSystem {
       pyaw: Math.PI,
       boardFrom: null,
       dead: false,
-      crossingKey: '',
+      crossingIntersectionId: null,
+      crossingAxis: null,
     };
     this.peds.push(ped);
     this.scene.add(ped.rig.group);
@@ -237,17 +268,17 @@ export class PeopleSystem {
   }
 
   private reportCrossing(ped: Ped, edge: WalkEdge | null): void {
-    const key = edge?.crossing ? `${edge.crossing.intersectionId}:${edge.crossing.axis}` : '';
-    if (key === ped.crossingKey) return;
-    if (ped.crossingKey) {
-      const [id, axis] = ped.crossingKey.split(':');
-      this.traffic.setCrossingOccupied(axis as 'NS' | 'EW', id, false);
+    const intersectionId = edge?.crossing ? edge.crossing.intersectionId : null;
+    const axis = edge?.crossing ? edge.crossing.axis : null;
+    if (intersectionId === ped.crossingIntersectionId && axis === ped.crossingAxis) return;
+    if (ped.crossingIntersectionId !== null && ped.crossingAxis !== null) {
+      this.traffic.setCrossingOccupied(ped.crossingAxis, ped.crossingIntersectionId, false);
     }
-    if (key) {
-      const [id, axis] = key.split(':');
-      this.traffic.setCrossingOccupied(axis as 'NS' | 'EW', id, true);
+    if (intersectionId !== null && axis !== null) {
+      this.traffic.setCrossingOccupied(axis, intersectionId, true);
     }
-    ped.crossingKey = key;
+    ped.crossingIntersectionId = intersectionId;
+    ped.crossingAxis = axis;
   }
 
   private pickNext(ped: Ped, nodeId: string, cameFrom: string): void {
@@ -294,6 +325,16 @@ export class PeopleSystem {
       const b = edge.points[edge.points.length - 1]!;
       return !this.blockers.intersects(a.x, a.z, b.x, b.z);
     });
+    if (pool.length === 0) {
+      const currentEdge = this.graph.edges.get(ped.edgeId);
+      if (currentEdge) {
+        ped.dir = ped.dir === 1 ? -1 : 1;
+        ped.s = currentEdge.length;
+      } else {
+        ped.state = 'idle';
+      }
+      return;
+    }
     const edge = pool[Math.floor(this.rng.next() * pool.length)]!;
     ped.state = 'walk';
     ped.edgeId = edge.id;

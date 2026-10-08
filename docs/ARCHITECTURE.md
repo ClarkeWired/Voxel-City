@@ -3,11 +3,11 @@
 ## Coordinate system & scale
 
 - Y is up. 1 unit = 1 voxel = 1 meter. `+X` = east, `+Z` = south (toward the default camera), `-Z` = north.
-- Grid (`src/city/grid.ts`): block = 30, road = 10, pitch = 40, 3×3 blocks, 4×4 intersections.
-  - `CITY_HALF = 65`, roads at `-60, -20, 20, 60`, blocks centered at `-40, 0, 40`.
+- Grid (`src/city/grid.ts`): block = 18, road = 7, pitch = 25, 5×5 blocks, 6×6 intersections.
+  - `CITY_HALF = 66`, roads at `-62.5, -37.5, -12.5, 12.5, 37.5, 62.5`, blocks centered at `-50, -25, 0, 25, 50`.
   - Roads are at y=0, block platforms are raised 1 unit (y 0..1). All walkable props sit at y≈1.
-- Lane geometry: right-hand traffic, lane offset ±2.5 from road center.
-- Stop lines at 9.15 from the intersection center; lane graph nodes at 13.5 so a stopped 8.6-long bus front bumper lands on the stop line and never blocks the zebra (zebra spans 5..8).
+- Lane geometry: UK left-hand traffic, lane offset ±1.75 from road center (derived from travel heading + left vector).
+  - Stop lines at 5.65 from the intersection center; lane graph nodes at 6.5 so a stopped 8.6-long bus front bumper lands on the stop line and never blocks the zebra.
 
 ## Rendering (`src/core/voxel.ts`)
 

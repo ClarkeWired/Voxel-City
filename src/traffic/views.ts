@@ -14,9 +14,9 @@ interface WheelSpec {
 }
 
 export const WHEELS: Record<VehicleKind, WheelSpec> = {
-  bus: { radius: 0.42, width: 0.26, hubWidth: 0.3, positionsX: [3.2, -2.8], track: 1.0, y: 0.42 },
-  sedan: { radius: 0.325, width: 0.22, hubWidth: 0.26, positionsX: [1.8, -1.8], track: 0.85, y: 0.325 },
-  van: { radius: 0.34, width: 0.24, hubWidth: 0.28, positionsX: [1.8, -1.8], track: 0.85, y: 0.34 },
+  bus: { radius: 0.42, width: 0.26, hubWidth: 0.3, positionsX: [2.6, -2.6], track: 1.25, y: 0.42 },
+  sedan: { radius: 0.325, width: 0.22, hubWidth: 0.26, positionsX: [1.4, -1.4], track: 0.95, y: 0.325 },
+  van: { radius: 0.34, width: 0.24, hubWidth: 0.28, positionsX: [1.4, -1.4], track: 0.95, y: 0.34 },
 };
 
 const TRIM = palette.busBumper;
@@ -24,10 +24,10 @@ const RIM = palette.carGray;
 
 function sedanBuilder(color: number): VoxelBuilder {
   const b = new VoxelBuilder();
-  b.box(0, 0.38, 0, 4.2, 0.55, 1.1, palette.carTire);
-  b.box(0.02, 0.48, 0, 1.6, 0.38, 1.8, color);
-  b.box(1.85, 0.48, 0, 0.28, 0.38, 1.8, color);
-  b.box(-1.83, 0.48, 0, 0.32, 0.38, 1.8, color);
+  b.box(0, 0.38, 0, 4.2, 0.55, 1.0, palette.carTire);
+  b.box(0.02, 0.48, 0, 1.6, 0.38, 1.5, color);
+  b.box(1.85, 0.48, 0, 0.28, 0.38, 1.5, color);
+  b.box(-1.83, 0.48, 0, 0.32, 0.38, 1.5, color);
   b.box(0, 0.78, 0, 4.25, 0.22, 1.8, color);
   b.box(-0.12, 1.08, 0, 2.0, 0.36, 1.5, color);
   b.box(0.38, 1.09, 0.72, 0.68, 0.24, 0.04, palette.carGlass);
@@ -60,10 +60,10 @@ function sedanBuilder(color: number): VoxelBuilder {
 
 function vanBuilder(color: number, emergency: boolean): VoxelBuilder {
   const b = new VoxelBuilder();
-  b.box(0, 0.4, 0, 4.2, 0.65, 1.1, palette.carTire);
-  b.box(0, 0.52, 0, 1.8, 0.42, 1.85, color);
-  b.box(1.82, 0.52, 0, 0.2, 0.42, 1.85, color);
-  b.box(-1.82, 0.52, 0, 0.2, 0.42, 1.85, color);
+  b.box(0, 0.4, 0, 4.2, 0.65, 1.0, palette.carTire);
+  b.box(0, 0.52, 0, 1.8, 0.42, 1.5, color);
+  b.box(1.82, 0.52, 0, 0.2, 0.42, 1.5, color);
+  b.box(-1.82, 0.52, 0, 0.2, 0.42, 1.5, color);
   b.box(1.55, 0.92, 0, 0.65, 0.38, 1.85, color);
   b.box(-0.35, 1.2, 0, 3.2, 0.95, 1.85, color);
   b.box(1.22, 1.32, 0, 0.06, 0.42, 1.6, palette.carGlass);
