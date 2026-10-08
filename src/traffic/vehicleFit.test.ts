@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { buildLaneGraph } from './graph';
 import { LANE_OFFSET, ROAD } from '../city/grid';
-import { WHEELS } from './views';
+import { VehicleView, WHEELS } from './views';
+import * as THREE from 'three';
 
 describe('vehicle fit', () => {
+  it.each(['sedan', 'van', 'bus'] as const)('%s wheels spin about their own axle centres', (kind) => {
+    const view = new VehicleView(kind, 0xffffff, new THREE.MeshLambertMaterial(), new THREE.MeshLambertMaterial());
+    const wheels = view.group.children.slice(1) as THREE.Mesh[];
+    expect(wheels).toHaveLength(4);
+    const before = wheels.map((wheel) => wheel.position.clone());
+    const expectedXs = WHEELS[kind].positionsX;
+    expect(wheels.map((wheel) => wheel.position.x)).toEqual([expectedXs[0], expectedXs[0], expectedXs[1], expectedXs[1]]);
+    view.advance(0.1, 5);
+    for (let i = 0; i < wheels.length; i++) {
+      expect(wheels[i]!.position.distanceTo(before[i]!)).toBe(0);
+      expect(wheels[i]!.rotation.z).not.toBe(0);
+    }
+  });
+
   const graph = buildLaneGraph();
 
   it('vehicle widths fit within lane widths', () => {
