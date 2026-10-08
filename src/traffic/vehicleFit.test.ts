@@ -57,4 +57,12 @@ describe('vehicle fit', () => {
       expect(wb).toBeLessThan(4.2 - 0.8);
     }
   });
+
+  it('keeps wheels under the body so they do not float', () => {
+    const bodyHalfWidth: Record<string, number> = { sedan: 0.9, van: 0.925, bus: 1.15 };
+    for (const [kind, spec] of Object.entries(WHEELS)) {
+      const half = bodyHalfWidth[kind]!;
+      expect(spec.track + spec.width / 2).toBeLessThanOrEqual(half + 1e-6);
+    }
+  });
 });
