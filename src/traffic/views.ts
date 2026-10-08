@@ -14,9 +14,9 @@ interface WheelSpec {
 }
 
 export const WHEELS: Record<VehicleKind, WheelSpec> = {
-  bus: { radius: 0.42, width: 0.26, hubWidth: 0.3, positionsX: [2.6, -2.2], track: 0.95, y: 0.42 },
-  sedan: { radius: 0.325, width: 0.22, hubWidth: 0.26, positionsX: [1.3, -1.25], track: 0.78, y: 0.325 },
-  van: { radius: 0.34, width: 0.24, hubWidth: 0.28, positionsX: [1.35, -1.35], track: 0.79, y: 0.34 },
+  bus: { radius: 0.42, width: 0.26, hubWidth: 0.3, positionsX: [3.2, -2.8], track: 1.0, y: 0.42 },
+  sedan: { radius: 0.325, width: 0.22, hubWidth: 0.26, positionsX: [1.8, -1.8], track: 0.85, y: 0.325 },
+  van: { radius: 0.34, width: 0.24, hubWidth: 0.28, positionsX: [1.8, -1.8], track: 0.85, y: 0.34 },
 };
 
 const TRIM = palette.busBumper;

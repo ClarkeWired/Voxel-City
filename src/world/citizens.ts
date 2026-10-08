@@ -147,7 +147,9 @@ export class CitizenSystem {
       if (!citizen || citizen.traveling) continue;
       const departTime = dayStart(nowAt) + citizen.workStart;
       if (departTime >= nowAt) continue;
-      citizen.nextDepart = nowAt - 1;
+      citizen.traveling = true;
+      citizen.tripAgentId = 100000 + citizen.id;
+      citizen.targetBlock = citizen.workBlock;
     }
   }
 

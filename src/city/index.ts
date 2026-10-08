@@ -123,36 +123,36 @@ export function buildCity(scene: THREE.Scene, rng: Rng): CityBuild {
         const treeCount = shelterSide ? 0 : rng.int(2, 3);
         for (let t = 0; t < treeCount; t++) {
           const u = uAt(rng.range(-9, 9));
-          const tx = cx + side.tx * u - side.nx * 0.9;
-          const tz = cz + side.tz * u - side.nz * 0.9;
+          const tx = cx + side.tx * u - side.nx * 2.1;
+          const tz = cz + side.tz * u - side.nz * 2.1;
           buildTree(builder, rng, tx, tz);
           blockers.addCircle(`tree:${bi}:${bj}:${t}`, tx, tz, 0.8);
         }
         if (rng.chance(0.7)) {
           const u = uAt(rng.range(-8, 8));
-          const bx2 = cx + side.tx * u - side.nx * 1.1;
-          const bz2 = cz + side.tz * u - side.nz * 1.1;
+          const bx2 = cx + side.tx * u - side.nx * 1.6;
+          const bz2 = cz + side.tz * u - side.nz * 1.6;
           buildBench(builder, bx2, bz2, Math.abs(side.tx) > 0);
           blockers.add(`bench:${bi}:${bj}`, bx2 - 1.0, bx2 + 1.0, bz2 - 0.3, bz2 + 0.3);
         }
         if (rng.chance(0.6)) {
           const u = uAt(rng.range(-8, 8));
-          const tx = cx + side.tx * u - side.nx * 0.7;
-          const tz = cz + side.tz * u - side.nz * 0.7;
+          const tx = cx + side.tx * u - side.nx * 1.4;
+          const tz = cz + side.tz * u - side.nz * 1.4;
           buildTrashCan(builder, tx, tz);
           blockers.addCircle(`bin:${bi}:${bj}`, tx, tz, 0.4);
         }
         if (rng.chance(0.4)) {
           const u = uAt(rng.range(-8, 8));
-          const px = cx + side.tx * u - side.nx * 1.2;
-          const pz = cz + side.tz * u - side.nz * 1.2;
+          const px = cx + side.tx * u - side.nx * 1.8;
+          const pz = cz + side.tz * u - side.nz * 1.8;
           buildPlanter(builder, rng, px, pz);
           blockers.add(`planter:${bi}:${bj}`, px - 0.6, px + 0.6, pz - 0.6, pz + 0.6);
         }
         if (rng.chance(0.3)) {
           const u = uAt(rng.range(-8, 8));
-          const hx = cx + side.tx * u - side.nx * 0.6;
-          const hz = cz + side.tz * u - side.nz * 0.6;
+          const hx = cx + side.tx * u - side.nx * 1.2;
+          const hz = cz + side.tz * u - side.nz * 1.2;
           buildHydrant(builder, hx, hz);
           blockers.addCircle(`hydrant:${bi}:${bj}`, hx, hz, 0.3);
         }
