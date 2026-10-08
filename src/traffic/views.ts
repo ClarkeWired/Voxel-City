@@ -130,8 +130,7 @@ function builderFor(kind: VehicleKind, color: number, emergency: boolean): Voxel
 
 export class VehicleView {
   readonly group = new THREE.Group();
-  private readonly wheelL: THREE.Mesh;
-  private readonly wheelR: THREE.Mesh;
+  private readonly wheels: THREE.Mesh[] = [];
   private readonly radius: number;
   private spin = 0;
 
@@ -147,14 +146,16 @@ export class VehicleView {
     this.group.add(body);
 
     const spec = WHEELS[kind];
-    const wheelGeom = wheelSetGeometry(kind);
-    this.wheelL = new THREE.Mesh(wheelGeom, wheelMaterial);
-    this.wheelL.position.set(0, spec.y, spec.track);
-    this.wheelL.castShadow = true;
-    this.wheelR = new THREE.Mesh(wheelGeom, wheelMaterial);
-    this.wheelR.position.set(0, spec.y, -spec.track);
-    this.wheelR.castShadow = true;
-    this.group.add(this.wheelL, this.wheelR);
+    const wheelGeom = wheelGeometry(kind);
+    for (const x of spec.positionsX) {
+      for (const z of [spec.track, -spec.track]) {
+        const wheel = new THREE.Mesh(wheelGeom, wheelMaterial);
+        wheel.position.set(x, spec.y, z);
+        wheel.castShadow = true;
+        this.wheels.push(wheel);
+        this.group.add(wheel);
+      }
+    }
     this.radius = spec.radius;
   }
 
@@ -169,8 +170,7 @@ export class VehicleView {
 
   advance(dt: number, speed: number): void {
     this.spin -= (speed * dt) / this.radius;
-    this.wheelL.rotation.z = this.spin;
-    this.wheelR.rotation.z = this.spin;
+    for (const wheel of this.wheels) wheel.rotation.z = this.spin;
   }
 }
 
@@ -187,22 +187,15 @@ function builderGeometry(kind: VehicleKind, color: number, emergency: boolean): 
   return geometry;
 }
 
-function wheelSetGeometry(kind: VehicleKind): THREE.BufferGeometry {
+function wheelGeometry(kind: VehicleKind): THREE.BufferGeometry {
   let geometry = wheelCache.get(kind);
   if (!geometry) {
     const spec = WHEELS[kind];
-    const parts: THREE.BufferGeometry[] = [];
-    for (const x of spec.positionsX) {
-      const tire = new THREE.CylinderGeometry(spec.radius, spec.radius, spec.width, 12);
-      tire.rotateX(Math.PI / 2);
-      tire.translate(x, 0, 0);
-      parts.push(tint(tire, palette.carTire));
-      const hub = new THREE.CylinderGeometry(spec.radius * 0.56, spec.radius * 0.56, spec.hubWidth, 10);
-      hub.rotateX(Math.PI / 2);
-      hub.translate(x, 0, 0);
-      parts.push(tint(hub, RIM));
-    }
-    geometry = mergeCylinders(parts);
+    const tire = new THREE.CylinderGeometry(spec.radius, spec.radius, spec.width, 12);
+    tire.rotateX(Math.PI / 2);
+    const hub = new THREE.CylinderGeometry(spec.radius * 0.56, spec.radius * 0.56, spec.hubWidth, 10);
+    hub.rotateX(Math.PI / 2);
+    geometry = mergeCylinders([tint(tire, palette.carTire), tint(hub, RIM)]);
     wheelCache.set(kind, geometry);
   }
   return geometry;
