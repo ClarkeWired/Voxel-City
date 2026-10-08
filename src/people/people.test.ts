@@ -36,6 +36,27 @@ function makeWorld(seed = 20261007) {
 }
 
 describe('pedestrian motion', () => {
+  it.each([1, -1] as const)('faces its actual direction of travel on a walk edge (dir=%i)', (dir) => {
+    const { people, peopleScene, walk } = makeWorld(20261008 + (dir === 1 ? 0 : 1));
+    const edge = [...walk.edges.values()].find((candidate) => !candidate.crossing && candidate.length > 2);
+    expect(edge).toBeDefined();
+    people.spawnPedOnEdge(edge!.id, 0.5, dir);
+    const rig = peopleScene.children[peopleScene.children.length - 1]!;
+
+    people.render(1);
+    const before = rig.position.clone();
+    people.update(FIXED_STEP);
+    people.render(1);
+
+    const movedX = rig.position.x - before.x;
+    const movedZ = rig.position.z - before.z;
+    const distance = Math.hypot(movedX, movedZ);
+    expect(distance).toBeGreaterThan(0.005);
+    // The face/eyes in person.ts point along the model's local +Z.
+    const alignment = (Math.sin(rig.rotation.y) * movedX + Math.cos(rig.rotation.y) * movedZ) / distance;
+    expect(alignment).toBeGreaterThan(0.9);
+  });
+
   it('stays inside its edge and carries the remainder across crossings', () => {
     const { traffic, people, walk } = makeWorld();
     const previous = new Map<number, { edgeId: string; s: number; state: string }>();
