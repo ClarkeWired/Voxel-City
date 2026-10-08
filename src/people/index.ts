@@ -197,8 +197,8 @@ export class PeopleSystem {
 
   private placeOnPath(ped: Ped, edge: WalkEdge): void {
     const p = this.sample(ped, edge);
-    const dx = p.dx * ped.dir;
-    const dz = p.dz * ped.dir;
+    const dx = p.dx;
+    const dz = p.dz;
     ped.ox = -dz * ped.lateral;
     ped.oz = dx * ped.lateral;
     ped.x = p.x + ped.ox;
@@ -375,8 +375,8 @@ export class PeopleSystem {
         const p = this.sample(ped, edge);
         pose.x = p.x;
         pose.z = p.z;
-        pose.dx = p.dx * ped.dir;
-        pose.dz = p.dz * ped.dir;
+        pose.dx = p.dx;
+        pose.dz = p.dz;
         if (ped.s >= edge.length) {
           const overshoot = ped.s - edge.length;
           const nodeId = ped.dir === 1 ? edge.b : edge.a;
